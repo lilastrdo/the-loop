@@ -25,7 +25,61 @@ function saveContact(p){download((p.full_name||'contact').trim().replace(/[^a-z\
 async function share(p){const url=urlFor(p.username||'demo');try{if(navigator.share){await navigator.share({title:`${p.full_name} | the Loop`,text:`Connect with ${p.full_name}`,url});return}}catch(e){if(e.name==='AbortError')return;}copy(url)}
 async function copy(s){try{await navigator.clipboard.writeText(s);announce('Link copied to clipboard')}catch{announce('Copy the link shown on screen')}}
 function wireCard(p){document.querySelectorAll('[data-action="save-contact"]').forEach(b=>b.onclick=()=>saveContact(p));document.querySelectorAll('[data-action="native-share"]').forEach(b=>b.onclick=()=>share(p));document.querySelectorAll('[data-action="copy-link"]').forEach(b=>b.onclick=()=>copy(urlFor(p.username)))}
-function drawQR(p){const canvas=document.getElementById('qr-canvas');if(!canvas)return;if(!window.QRCode){canvas.replaceWith(Object.assign(document.createElement('p'),{textContent:'QR code library unavailable. Share the link below instead.'}));return}window.QRCode.toCanvas(canvas,urlFor(p.username),{width:210,margin:1,color:{dark:'#182335',light:'#ffffff'}},e=>{if(e)announce('Could not generate QR code')})}
+
+function drawQR(p) {
+  const canvas = document.getElementById('qr-canvas');
+  if (!canvas) return;
+
+  if (typeof window.qrcode !== 'function') {
+    canvas.replaceWith(
+      Object.assign(document.createElement('p'), {
+        textContent: 'QR code library unavailable.'
+      })
+    );
+    return;
+  }
+
+  try {
+    const qr = window.qrcode(0, 'M');
+    qr.addData(urlFor(p.username));
+    qr.make();
+
+    const count = qr.getModuleCount();
+    const cellSize = 6;
+    const margin = 4;
+    const size = (count + margin * 2) * cellSize;
+
+    canvas.width = size;
+    canvas.height = size;
+
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+
+    ctx.fillStyle = '#182335';
+
+    for (let row = 0; row < count; row++) {
+      for (let col = 0; col < count; col++) {
+        if (qr.isDark(row, col)) {
+          ctx.fillRect(
+            (col + margin) * cellSize,
+            (row + margin) * cellSize,
+            cellSize,
+            cellSize
+          );
+        }
+      }
+    }
+
+    canvas.style.width = '210px';
+    canvas.style.height = '210px';
+    canvas.style.maxWidth = '100%';
+  } catch (error) {
+    console.error('QR generation failed:', error);
+    announce('Could not generate QR code');
+  }
+}
+
 function qrBlock(p){return `<div class="qrcard"><canvas id="qr-canvas" aria-label="QR code for public card"></canvas><p class="hint" style="margin-top:12px;text-align:center">Scan with your phone camera</p></div><div class="public-url" style="margin:12px 0">${esc(urlFor(p.username))}</div><button class="btn secondary block" data-action="copy-link">Copy card link</button>`}
 function demoPage(){render(`<main class="public-wrap"><div class="top-row"><div><h1>Example digital card</h1><p>Preview the visitor experience</p></div></div>${card(demo)}<div class="panel"><h3>Try the contact exchange</h3><p class="hint" style="margin:9px 0">Demo data is never submitted or stored.</p>${exchangeForm(true)}</div></main>`);wireCard(demo);wireExchange(demo,true)}
 function exchangeForm(isDemo){return `<form id="exchange-form" class="form"><div class="field"><label for="v-name">Your full name *</label><input id="v-name" name="name" maxlength="100" required autocomplete="name"></div><div class="field"><label for="v-email">Email *</label><input id="v-email" name="email" type="email" maxlength="200" required autocomplete="email"></div><div class="field"><label for="v-phone">Phone (optional)</label><input id="v-phone" name="phone" type="tel" maxlength="40" autocomplete="tel"></div><div class="field"><label for="v-company">Company (optional)</label><input id="v-company" name="company" maxlength="120" autocomplete="organization"></div><div class="field"><label for="v-message">Message (optional)</label><textarea id="v-message" name="message" maxlength="500" placeholder="Great meeting you at..."></textarea></div><label class="check"><input name="consent" type="checkbox" required><span>I agree to share these details with the card owner so they can contact me. The owner will receive my submission.</span></label>${!isDemo&&cfg.turnstileSiteKey?`<div class="cf-turnstile" data-sitekey="${esc(cfg.turnstileSiteKey)}"></div>`:''}<button class="btn block" type="submit">⇄ Exchange information</button><div id="exchange-feedback" aria-live="polite"></div></form>`}
