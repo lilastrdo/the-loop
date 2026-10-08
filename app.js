@@ -114,7 +114,8 @@ profile = data;
 view = 'overview';
 showDashboard();
 announce('Profile saved successfully!');
-window.scrollTo({ top: 0, behavior: 'smooth' });}
+window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 async function loadContacts(){const target=document.getElementById('contacts-list');if(!target)return;const {data,error}=await db.from('contact_exchanges').select('name,email,phone,company,message,created_at').eq('owner_id',me.id).order('created_at',{ascending:false}).limit(100);if(error){target.innerHTML=`<div class="error">${esc(error.message)}</div>`;return}target.className='';target.innerHTML=data.length?data.map(c=>`<div class="contact-item"><h3>${esc(c.name)}</h3><p>${esc(c.email)} ${c.phone?'· '+esc(c.phone):''}</p>${c.company?`<p>${esc(c.company)}</p>`:''}${c.message?`<p>“${esc(c.message)}”</p>`:''}<p class="hint">${esc(new Date(c.created_at).toLocaleString())}</p></div>`).join(''):'<div class="empty">No connections yet. Share your card to get started!</div>';}
 async function resetPage(){
   if(!configured){render('<main class="center-wrap"><div class="panel">Password reset is unavailable until Supabase is configured.</div></main>');return}
