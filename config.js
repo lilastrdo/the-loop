@@ -5,5 +5,5 @@ window.THE_LOOP_CONFIG = {
   // The public URL where you deploy this app, without trailing slash.
   siteUrl: 'https://lilastrdo.github.io/the-loop/', // e.g. https://yourusername.github.io/the-loop
   // Optional: Turnstile site key for spam prevention on public exchange forms.
-  turnstileSiteKey: ''
+  turnstileSiteKey: '0x4AAAAAAFRuIHfsQWy_P-GR'
 };
