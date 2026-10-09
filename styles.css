@@ -138,84 +138,80 @@ html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
 .demo-disclaimer{font-size:12px;text-align:center;color:var(--muted);margin-top:19px}
 @media(max-width:740px){.demo-page{padding:30px 16px 60px}.demo-layout{grid-template-columns:minmax(0,1fr)}.demo-qr-panel{min-height:390px}.demo-intro{margin-bottom:25px}.demo-intro h1{letter-spacing:-.8px}}
 
-/* the Loop — Slate Navy header and white-bordered infinity logo */
-.header,
-html[data-mode="dark"] .header {
-    background: #243449 !important;
-    border-bottom: 1px solid #40536A;
+/* the Loop: executive Slate Navy navigation, consistent in both appearance modes */
+.header,html[data-mode="dark"] .header {
+  background: #243449 !important;
+  border-bottom: 1px solid #40536a !important;
+  color: #f8fafc;
+}
+.header .brand,html[data-mode="dark"] .header .brand {
+  color: #fff !important;
+  font-weight: 800;
+  letter-spacing: -.35px;
+}
+.header .nav-links .btn,html[data-mode="dark"] .header .nav-links .btn {
+  color: #f8fafc !important;
+  background: #1d2b40 !important;
+  border: 1px solid #50647f !important;
+  border-radius: 12px;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.header .nav-links .btn:hover,html[data-mode="dark"] .header .nav-links .btn:hover {
+  background: #344861 !important;
+  border-color: #8294ac !important;
+}
+.header .nav-links .btn.ghost,html[data-mode="dark"] .header .nav-links .btn.ghost {
+  background: transparent !important;
+  color: #fff !important;
+  border-color: #8294ac !important;
+}
+.header .nav-links #logout,html[data-mode="dark"] .header .nav-links #logout {
+  background: #243449 !important;
+  color: #fff !important;
+  border-color: #50647f !important;
+}
+.header .brand img.brand-logo {
+  display:block; width:52px !important; height:52px !important;
+  max-width:52px !important; max-height:52px !important;
+  object-fit:cover; flex:0 0 auto;
+  border:2px solid #fff !important;
+  border-radius:14px !important;
+  box-shadow: 0 1px 8px #0005;
+}
+/* Allow enough space for the full icon without breaking mobile navigation */
+@media(max-width:767px){
+  .header .brand img.brand-logo{width:44px !important;height:44px !important;max-width:44px !important;max-height:44px !important;border-radius:12px !important}
+  .header .mobile-icon{background:#20324b !important;color:#fff !important;border-color:#63768f !important}
 }
 
-.header .brand {
-    color: #FFFFFF !important;
+/* Demo: consistent card readability and presentation in LIGHT and DARK modes */
+.demo-page{color:var(--ink)}
+.demo-intro h1{color:var(--ink)!important}
+.demo-intro p{color:var(--muted)!important}
+.demo-layout{align-items:stretch}
+.demo-profile{min-width:0}
+.demo-profile .profile-view,html[data-mode="dark"] .demo-profile .profile-view {
+  background:#fff!important;color:#182335!important;border:1px solid #dce3ec;
+  box-shadow:0 12px 35px #071b2b16;
 }
-
-.brand img.brand-logo {
-    display: block;
-    width: 46px !important;
-    height: 46px !important;
-    max-width: 46px !important;
-    max-height: 46px !important;
-    object-fit: contain;
-    border: 1.5px solid #FFFFFF;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-    flex-shrink: 0;
+.demo-profile .profile-view h2{color:#182335!important}
+.demo-profile .profile-view .muted{color:#526578!important}
+.demo-profile .profile-view .bio{color:#334155!important;opacity:1!important}
+.demo-profile .profile-view .social a{color:#4636a7!important;background:#f0eeff!important}
+.demo-qr-panel,html[data-mode="dark"] .demo-qr-panel {
+  background:linear-gradient(145deg,#263958,#111c31)!important;
+  border:1px solid #5d7396!important;
+  color:#fff!important;
 }
-
-@media (max-width: 767px) {
-    .brand img.brand-logo {
-        width: 42px !important;
-        height: 42px !important;
-        max-width: 42px !important;
-        max-height: 42px !important;
-    }
+.demo-qr-panel h2{color:#fff!important}
+.demo-qr-panel > p{color:#d7e2f3!important}
+.demo-qr-box{background:#fff!important}
+.demo-qr-panel .btn.secondary,html[data-mode="dark"] .demo-qr-panel .btn.secondary {
+  color:#172338!important;background:#fff!important;border-color:#fff!important;
 }
-
-/* the Loop — Refined Slate Navy Navigation */
-
-/* Keep header Slate Navy */
-.header,
-html[data-mode="dark"] .header {
-    background: #243449 !important;
-    border-bottom: 1px solid #40536A;
+.demo-exchange .field input,.demo-exchange .field textarea{
+  width:100%;max-width:100%;
 }
-
-/* All navigation text */
-.header .brand,
-.header .nav-links .btn,
-.header .nav-links a {
-    color: #FFFFFF !important;
-}
-
-/* Secondary navigation buttons */
-.header .btn.secondary,
-html[data-mode="dark"] .header .btn.secondary {
-    background: #34465D !important;
-    border: 1px solid #536780 !important;
-    color: #FFFFFF !important;
-}
-
-/* Demo button */
-.header .btn.ghost,
-html[data-mode="dark"] .header .btn.ghost {
-    background: transparent !important;
-    color: #FFFFFF !important;
-}
-
-/* Log out button */
-.header #logout {
-    background: #6555E8 !important;
-    color: #FFFFFF !important;
-    border-color: #6555E8 !important;
-}
-
-/* Subtle button hover */
-.header .btn:hover {
-    filter: brightness(1.12);
-}
-
-/* Logo border */
-.header .brand-logo {
-    border: 1.5px solid #FFFFFF !important;
-    border-radius: 12px;
-}
+.demo-disclaimer{line-height:1.6}
+@media(max-width:740px){.demo-layout{gap:16px}.demo-page{padding-left:16px;padding-right:16px}.demo-qr-panel{padding:26px 18px}}
