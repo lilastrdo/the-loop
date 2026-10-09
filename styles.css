@@ -113,32 +113,27 @@ html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
 #contact-search:focus {outline:2px solid #6555e8;outline-offset:2px}
 .contact-count {margin:8px 0 0;font-size:13px;color:var(--muted)}
 
-
-/* FIX: Connections text visibility in ALL modes */
-
-.contact-item,
-html[data-mode="dark"] .contact-item {
-    background: #FFFFFF !important;
-    color: #334155 !important;
-}
-
-/* Contact names */
-.contact-item h3,
-html[data-mode="dark"] .contact-item h3 {
-    color: #182335 !important;
-    opacity: 1 !important;
-}
-
-/* Emails, phone numbers, company, messages */
-.contact-item p,
-html[data-mode="dark"] .contact-item p {
-    color: #334155 !important;
-    opacity: 1 !important;
-}
-
-/* Date and time */
-.contact-item .hint,
-html[data-mode="dark"] .contact-item .hint {
-    color: #52657D !important;
-    opacity: 1 !important;
-}
+/* the Loop: fully featured responsive demo, including a real demo QR */
+.demo-page{max-width:1120px;margin:0 auto;padding:54px 20px 80px}
+.demo-intro{text-align:center;max-width:790px;margin:0 auto 38px}
+.demo-tag{display:inline-block;font-size:12px;font-weight:800;letter-spacing:1.5px;color:#8e83ff;background:#6555e820;padding:9px 15px;border-radius:30px;margin-bottom:19px}
+.demo-intro h1{font-family:Manrope,sans-serif;font-size:clamp(30px,4.4vw,54px);letter-spacing:-1.8px;line-height:1.13;margin:0 0 16px}
+.demo-intro h1 span{color:#766af1}
+.demo-intro p{color:var(--muted);font-size:16px;line-height:1.7}
+.demo-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:22px;align-items:stretch}
+.demo-profile .profile-view{height:100%;margin:0}
+.demo-profile .identity{padding-bottom:28px}
+.demo-profile .identity .bio{color:#334155!important}
+.demo-profile .social{gap:8px}
+.demo-qr-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:15px;padding:30px 22px;border:1px solid #455176;border-radius:24px;background:linear-gradient(155deg,#202d4a,#111a30);color:#f7f9ff}
+.demo-qr-panel h2{font-size:27px}
+.demo-qr-panel>p{color:#c6cee1;line-height:1.6;max-width:310px}
+.demo-qr-icon{display:grid;place-items:center;width:60px;height:60px;border-radius:50%;background:#6555e84d;color:#ddd8ff;font-size:32px}
+.demo-qr-box{display:grid;place-items:center;background:#fff;padding:15px;border-radius:17px;width:min(100%,270px)}
+.demo-qr-box canvas{display:block;max-width:100%!important;width:100%!important;height:auto!important;aspect-ratio:1/1}
+.demo-qr-panel .demo-qr-caption{font-size:13px;color:#c8d2e4}
+.demo-qr-panel .btn.secondary{background:#fff;color:#172338;border-color:#fff;max-width:270px}
+.demo-exchange{margin:28px auto 0;max-width:760px}
+.demo-exchange>.hint{margin-top:9px}
+.demo-disclaimer{font-size:12px;text-align:center;color:var(--muted);margin-top:19px}
+@media(max-width:740px){.demo-page{padding:30px 16px 60px}.demo-layout{grid-template-columns:minmax(0,1fr)}.demo-qr-panel{min-height:390px}.demo-intro{margin-bottom:25px}.demo-intro h1{letter-spacing:-.8px}}
