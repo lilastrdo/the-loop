@@ -216,9 +216,19 @@ html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
 .demo-disclaimer{line-height:1.6}
 @media(max-width:740px){.demo-layout{gap:16px}.demo-page{padding-left:16px;padding-right:16px}.demo-qr-panel{padding:26px 18px}}
 
-/* The Loop — Official slogan */
+
+/* the Loop — Purple Gradient Slogan */
 .slogan-accent {
-    color: #8FA3BD;
+    background: linear-gradient(
+        135deg,
+        #776BFF 0%,
+        #6051F4 50%,
+        #4432A4 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: #6051F4;
 }
 
 .hero h1 {
