@@ -30,3 +30,49 @@
 .theme-steel-blue{--c1:#285377;--c2:#6f91ab;--button:#285377}
 .theme-espresso{--c1:#46332d;--c2:#897063;--button:#574035}
 .theme-teal-professional{--c1:#154e5a;--c2:#4e8991;--button:#196071}
+
+/* Profile editor responsive layout and photo crop upgrade */
+.theme-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:12px}
+.theme-pick{min-width:0;min-height:64px;box-sizing:border-box;display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:10px 12px;overflow-wrap:anywhere;white-space:normal;line-height:1.25;font-size:13px}
+.theme-pick input{flex:0 0 auto;margin:0}
+.theme-pick .theme-dot{flex:0 0 25px}
+.theme-pick .theme-name{min-width:0;flex:1 1 auto;overflow-wrap:anywhere;word-break:normal}
+.photo-preview{display:flex;justify-content:center;padding:18px 0 24px}
+.photo-preview .avatar{width:180px;height:180px;border-radius:50%;object-fit:cover;font-size:48px;max-width:100%}
+.crop-editor[hidden]{display:none!important}
+.crop-editor{display:grid;gap:14px;max-width:440px;padding:18px;border:1px solid #dce2ec;border-radius:16px;background:#fff}
+.crop-stage{width:min(100%,320px);aspect-ratio:1;touch-action:none;cursor:grab;overflow:hidden;border-radius:12px;margin:auto}
+.crop-stage:active{cursor:grabbing}
+.crop-stage canvas{width:100%;height:100%;display:block}
+.crop-zoom-label{display:flex;align-items:center;gap:15px}
+.crop-zoom-label input{flex:1;min-width:0}
+.crop-actions{display:flex;gap:10px;flex-wrap:wrap}
+@media(max-width:480px){.theme-options{grid-template-columns:repeat(2,minmax(0,1fr))}.theme-pick{padding:10px 8px;gap:7px;font-size:12px}.photo-preview .avatar{width:152px;height:152px}}
+
+
+/* Appearance settings — light/dark. Card color themes stay as their owners designed them. */
+html[data-mode="dark"]{color-scheme:dark;--bg:#101520;--ink:#eff3fb;--muted:#adb9ca;--line:#344157;--card:#202a3a;--accent:#9d91ff;--accent2:#8072ed;--shadow:0 16px 42px #0005}
+html[data-mode="dark"] body{background:var(--bg);color:var(--ink)}
+html[data-mode="dark"] .header{background:#151d2cf2;border-color:var(--line)}
+html[data-mode="dark"] .panel,html[data-mode="dark"] .feature,html[data-mode="dark"] .crop-editor{background:var(--card);color:var(--ink);border-color:var(--line)}
+html[data-mode="dark"] .btn.secondary{background:#253249;color:var(--ink);border-color:#40506b}
+html[data-mode="dark"] .btn.secondary:hover{background:#354365}
+html[data-mode="dark"] .btn.ghost{color:var(--ink)}
+html[data-mode="dark"] .side button.active,html[data-mode="dark"] .side button:hover{background:#352e62;color:#c4bbff}
+html[data-mode="dark"] .tabs{background:#111b2b}
+html[data-mode="dark"] .tab.active{background:#354157;color:#fff}
+html[data-mode="dark"] .field input,html[data-mode="dark"] .field textarea,html[data-mode="dark"] .profile-form input:not([type="radio"]):not([type="checkbox"]):not([type="file"]),html[data-mode="dark"] .profile-form textarea,html[data-mode="dark"] .form input:not([type="checkbox"]),html[data-mode="dark"] .form textarea{background:#172235;border-color:#45526b;color:#eef3ff}
+html[data-mode="dark"] input::placeholder,html[data-mode="dark"] textarea::placeholder{color:#9eacc2}
+html[data-mode="dark"] .info-strip,html[data-mode="dark"] .public-url,html[data-mode="dark"] .qrcard{background:#26334a;color:#e9eefa;border-color:#43516c}
+html[data-mode="dark"] .theme-pick{background:#243147;color:var(--ink);border-color:#40506b}
+html[data-mode="dark"] .theme-pick:has(input:checked){outline:2px solid var(--accent);border-color:var(--accent)}
+html[data-mode="dark"] .contact-item{border-color:var(--line)}
+html[data-mode="dark"] .footer{border-color:var(--line)}
+html[data-mode="dark"] .feature p,html[data-mode="dark"] .muted,html[data-mode="dark"] .hint{color:var(--muted)}
+html[data-mode="dark"] .loader{color:var(--muted)}
+/* Public-facing colored profile cards remain unchanged in dark mode. */
+html[data-mode="dark"] .profile-view{color:#182335;background:#fff}
+html[data-mode="dark"] .profile-view .muted{color:#69798d}
+html[data-mode="dark"] .profile-view .btn.secondary{background:#fff;color:#182335;border-color:#dce1e9}
+html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
+@media(max-width:660px){.mode-toggle{padding:8px 10px!important;font-size:12px!important}.nav-links{gap:6px}.header .shell{padding-left:12px;padding-right:12px}.brand{font-size:17px}}
