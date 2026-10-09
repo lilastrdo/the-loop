@@ -170,3 +170,52 @@ html[data-mode="dark"] .header {
         max-height: 42px !important;
     }
 }
+
+/* the Loop — Refined Slate Navy Navigation */
+
+/* Keep header Slate Navy */
+.header,
+html[data-mode="dark"] .header {
+    background: #243449 !important;
+    border-bottom: 1px solid #40536A;
+}
+
+/* All navigation text */
+.header .brand,
+.header .nav-links .btn,
+.header .nav-links a {
+    color: #FFFFFF !important;
+}
+
+/* Secondary navigation buttons */
+.header .btn.secondary,
+html[data-mode="dark"] .header .btn.secondary {
+    background: #34465D !important;
+    border: 1px solid #536780 !important;
+    color: #FFFFFF !important;
+}
+
+/* Demo button */
+.header .btn.ghost,
+html[data-mode="dark"] .header .btn.ghost {
+    background: transparent !important;
+    color: #FFFFFF !important;
+}
+
+/* Log out button */
+.header #logout {
+    background: #6555E8 !important;
+    color: #FFFFFF !important;
+    border-color: #6555E8 !important;
+}
+
+/* Subtle button hover */
+.header .btn:hover {
+    filter: brightness(1.12);
+}
+
+/* Logo border */
+.header .brand-logo {
+    border: 1.5px solid #FFFFFF !important;
+    border-radius: 12px;
+}
