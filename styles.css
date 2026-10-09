@@ -141,3 +141,26 @@ html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
 /* Full navy square infinity logo — header and authentication pages */
 .brand-logo {display:block;width:46px;height:46px;object-fit:contain;border-radius:12px;flex:0 0 auto}
 @media(max-width:767px){.header .brand-logo{width:42px;height:42px;border-radius:11px}}
+
+/* FIX: Keep the Loop logo properly sized */
+
+.brand img.brand-logo {
+    width: 46px !important;
+    height: 46px !important;
+    max-width: 46px !important;
+    max-height: 46px !important;
+    object-fit: contain !important;
+    border-radius: 12px;
+    display: block;
+    flex-shrink: 0;
+}
+
+/* Mobile logo */
+@media (max-width: 767px) {
+    .brand img.brand-logo {
+        width: 42px !important;
+        height: 42px !important;
+        max-width: 42px !important;
+        max-height: 42px !important;
+    }
+}
