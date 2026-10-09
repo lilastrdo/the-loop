@@ -164,3 +164,31 @@ html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
         max-height: 42px !important;
     }
 }
+
+/* The Loop — Professional header color */
+.header,
+html[data-mode="dark"] .header {
+    background: #243449 !important;
+    border-bottom: 1px solid #40536A;
+}
+
+/* White brand text */
+.header .brand {
+    color: #FFFFFF !important;
+}
+
+/* Keep the infinity logo at icon size */
+.header .brand-logo {
+    width: 46px !important;
+    height: 46px !important;
+    object-fit: contain;
+    border-radius: 12px;
+}
+
+/* Mobile */
+@media (max-width: 767px) {
+    .header .brand-logo {
+        width: 42px !important;
+        height: 42px !important;
+    }
+}
