@@ -533,4 +533,10 @@ html[data-mode="dark"] .hero h1 .slogan-accent {
 .connection-delete-button:not(:disabled){color:#b42334!important;border-color:#d8a2ac!important;background:#fff4f4!important}
 .connection-delete-button:disabled{opacity:.5}
 #connection-selection-count{white-space:nowrap}
+/* Cleaner five-action Connections toolbar */
+.connections-toolbar {display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:18px 0;}
+.connections-toolbar .btn {min-height:39px;padding:9px 12px;}
+#connection-selection-count {margin-left:auto;white-space:nowrap;}
+.connection-badge[hidden] {display:none !important;}
+@media(max-width:620px){.connections-toolbar .btn{flex:1 1 auto!important;min-width:calc(50% - 8px)}#connection-selection-count{margin-left:0;width:100%;text-align:right;}}
 
