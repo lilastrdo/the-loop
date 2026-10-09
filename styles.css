@@ -76,3 +76,14 @@ html[data-mode="dark"] .profile-view .muted{color:#69798d}
 html[data-mode="dark"] .profile-view .btn.secondary{background:#fff;color:#182335;border-color:#dce1e9}
 html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
 @media(max-width:660px){.mode-toggle{padding:8px 10px!important;font-size:12px!important}.nav-links{gap:6px}.header .shell{padding-left:12px;padding-right:12px}.brand{font-size:17px}}
+
+/* Darker professional bio text in light mode */
+.profile-view .bio {
+  color: #334155;
+  opacity: 1;
+}
+
+/* Readable bio text in dark mode */
+[data-theme="dark"] .profile-view .bio {
+  color: #CBD5E1;
+}
