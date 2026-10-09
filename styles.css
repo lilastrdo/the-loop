@@ -101,69 +101,14 @@ html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
 /* Keep biography readable on light-colored cards in both page modes */
 .profile-view .bio,html[data-mode="dark"] .profile-view .bio{color:#334155!important;opacity:1!important}
 
-/* Theme-coordinated professional job title colors */
-
-.profile-view.theme-violet .title {
-  color: #6950A1 !important;
-}
-
-.profile-view.theme-ocean .title {
-  color: #087E9A !important;
-}
-
-.profile-view.theme-emerald .title {
-  color: #27764B !important;
-}
-
-.profile-view.theme-sunset .title {
-  color: #B65B36 !important;
-}
-
-.profile-view.theme-rose .title {
-  color: #A74677 !important;
-}
-
-.profile-view.theme-midnight .title {
-  color: #485779 !important;
-}
-
-.profile-view.theme-executive-navy .title {
-  color: #526B8A !important;
-}
-
-.profile-view.theme-graphite .title {
-  color: #4B5563 !important;
-}
-
-.profile-view.theme-slate .title {
-  color: #526578 !important;
-}
-
-.profile-view.theme-forest .title {
-  color: #32694E !important;
-}
-
-.profile-view.theme-champagne .title {
-  color: #856941 !important;
-}
-
-.profile-view.theme-burgundy .title {
-  color: #823F59 !important;
-}
-
-.profile-view.theme-ivory .title {
-  color: #77664C !important;
-}
-
-.profile-view.theme-steel-blue .title {
-  color: #426E91 !important;
-}
-
-.profile-view.theme-espresso .title {
-  color: #735243 !important;
-}
-
-.profile-view.theme-teal-professional .title {
-  color: #25747A !important;
-}
-
+/* Connections: high contrast on white cards in either display mode */
+.contact-item,html[data-mode="dark"] .contact-item {background:#fff!important;color:#182335!important;border:1px solid #d9e1eb!important}
+.contact-item h3,html[data-mode="dark"] .contact-item h3 {color:#182335!important;font-size:16px;font-weight:700}
+.contact-item p,html[data-mode="dark"] .contact-item p {color:#334155!important;font-size:14px;line-height:1.5}
+.contact-item .contact-date,html[data-mode="dark"] .contact-item .contact-date {color:#52657d!important;font-size:13px}
+.contact-search-row {margin:18px 0 14px}
+.contact-search-row label {display:block;font-weight:600;font-size:14px;margin-bottom:8px;color:inherit}
+#contact-search,html[data-mode="dark"] #contact-search {display:block;box-sizing:border-box;width:100%;max-width:560px;background:#fff!important;color:#182335!important;border:1px solid #bcc9d9!important;border-radius:12px;padding:12px 14px;font:inherit;font-size:15px}
+#contact-search::placeholder,html[data-mode="dark"] #contact-search::placeholder {color:#64748b!important}
+#contact-search:focus {outline:2px solid #6555e8;outline-offset:2px}
+.contact-count {margin:8px 0 0;font-size:13px;color:var(--muted)}
