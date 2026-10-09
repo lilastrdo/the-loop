@@ -223,3 +223,8 @@ html[data-mode="dark"] .header {
         height: 42px !important;
     }
 }
+.brand-logo {
+  border: 1.5px solid #B0B8C5;   /* silver */
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
