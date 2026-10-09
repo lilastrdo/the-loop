@@ -6,7 +6,10 @@ const db=configured?window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAno
 const root=document.getElementById('app');
 let me=null,profile=null,view='overview',toastTimer;
 let pendingMobileView=null;
-let recoveryMode=false; // Supabase PASSWORD_RECOVERY event enables the reset screen.
+let unreadConnections=0;
+ let connectionLastViewed=null;
+ let connectionPoll=null;
+ let recoveryMode=false; // Supabase PASSWORD_RECOVERY event enables the reset screen.
 let colorMode='light';
 try{colorMode=localStorage.getItem('the-loop-color-mode')==='dark'?'dark':'light'}catch{}
 document.documentElement.dataset.mode=colorMode;
@@ -22,9 +25,10 @@ const resetUrl=()=>siteRoot()+'?page=reset';
 const onResetUrl=()=>new URLSearchParams(location.search).get('page')==='reset';
 const urlFor=s=>siteRoot()+'#/u/'+encodeURIComponent(s);
 const avatar=p=>p?.username==='demo'?`<img class="avatar" alt="Fictional professional headshot of John Smith" src="demo-businessman.webp">`:p?.photo_url&&photoUrl(p.photo_url)?`<img class="avatar" alt="Profile portrait" src="${esc(photoUrl(p.photo_url))}">`:`<div class="avatar" aria-hidden="true">${esc((p?.full_name||'LC').trim().slice(0,2).toUpperCase())}</div>`;
-function nav(){return `<header class="header"><div class="shell nav"><a class="brand" href="#/"><img src="loop-logo.png" alt="the Loop logo"  class="brand-logo"> the Loop</a><div class="nav-links"><a class="btn ghost small" href="#/demo">Demo</a>${me?'<a class="btn secondary small" href="#/dashboard">My Account</a><button class="btn small" id="logout">Log out</button>':'<a class="btn secondary small" href="#/auth">Log in</a><a class="btn small" href="#/auth?signup">Get started</a>'}<button type="button" id="color-mode-toggle" class="btn secondary small mode-toggle" aria-pressed="${colorMode==='dark'}" aria-label="Toggle dark mode">${colorMode==='dark'?'☀ Light mode':'☾ Dark mode'}</button></div><div class="mobile-actions"><button type="button" id="mobile-theme-toggle" class="mobile-icon" aria-label="${colorMode==='dark'?'Switch to light mode':'Switch to dark mode'}" title="Change appearance">${colorMode==='dark'?'☀':'☾'}</button><button type="button" id="mobile-menu-toggle" class="mobile-icon" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-menu">☰</button></div></div><nav class="mobile-menu" id="mobile-menu" aria-label="Mobile navigation" hidden>${me?'<a href="#/dashboard">My Account</a><a href="#/dashboard" data-mobile-view="edit">Edit Card</a><a href="#/dashboard" data-mobile-view="share">Share & QR</a><a href="#/dashboard" data-mobile-view="contacts">Connections</a>':'<a href="#/auth">Log in</a><a href="#/auth?signup">Get started</a>'}<a href="#/demo">Demo</a>${me?'<button type="button" id="mobile-logout">Log out</button>':''}</nav></header>`}
+function nav(){return `<header class="header"><div class="shell nav"><a class="brand" href="#/"><img src="loop-logo.png" alt="the Loop logo"  class="brand-logo"> the Loop</a><div class="nav-links"><a class="btn ghost small" href="#/demo">Demo</a>${me?'<a class="btn secondary small" href="#/dashboard">My Account</a><span class="connection-badge nav-unread" data-unread-count hidden></span><button class="btn small" id="logout">Log out</button>':'<a class="btn secondary small" href="#/auth">Log in</a><a class="btn small" href="#/auth?signup">Get started</a>'}<button type="button" id="color-mode-toggle" class="btn secondary small mode-toggle" aria-pressed="${colorMode==='dark'}" aria-label="Toggle dark mode">${colorMode==='dark'?'☀ Light mode':'☾ Dark mode'}</button></div><div class="mobile-actions"><button type="button" id="mobile-theme-toggle" class="mobile-icon" aria-label="${colorMode==='dark'?'Switch to light mode':'Switch to dark mode'}" title="Change appearance">${colorMode==='dark'?'☀':'☾'}</button><button type="button" id="mobile-menu-toggle" class="mobile-icon" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-menu">☰</button></div></div><nav class="mobile-menu" id="mobile-menu" aria-label="Mobile navigation" hidden>${me?'<a href="#/dashboard">My Account</a><a href="#/dashboard" data-mobile-view="edit">Edit Card</a><a href="#/dashboard" data-mobile-view="share">Share & QR</a><a href="#/dashboard" data-mobile-view="contacts">Connections <span class="connection-badge" data-unread-count hidden></span></a>':'<a href="#/auth">Log in</a><a href="#/auth?signup">Get started</a>'}<a href="#/demo">Demo</a>${me?'<button type="button" id="mobile-logout">Log out</button>':''}</nav></header>`}
 function render(content){root.innerHTML=nav()+content+`<footer class="footer"><div class="shell">© ${new Date().getFullYear()} the Loop · Digital connections, made simple.</div></footer>`;
-const modeButton=document.getElementById('color-mode-toggle');if(modeButton)modeButton.onclick=toggleColorMode;
+syncUnreadBadges();
+ const modeButton=document.getElementById('color-mode-toggle');if(modeButton)modeButton.onclick=toggleColorMode;
 const mobileMode=document.getElementById('mobile-theme-toggle');if(mobileMode)mobileMode.onclick=()=>{toggleColorMode();mobileMode.textContent=colorMode==='dark'?'☀':'☾';mobileMode.setAttribute('aria-label',colorMode==='dark'?'Switch to light mode':'Switch to dark mode')};
 const menu=document.getElementById('mobile-menu'),menuButton=document.getElementById('mobile-menu-toggle');
 if(menuButton&&menu){menuButton.onclick=()=>{const open=menu.hidden;menu.hidden=!open;menuButton.setAttribute('aria-expanded',String(open));menuButton.setAttribute('aria-label',open?'Close navigation menu':'Open navigation menu');menuButton.textContent=open?'✕':'☰'};
@@ -39,11 +43,7 @@ const mobileLogout=document.getElementById('mobile-logout');if(mobileLogout)mobi
 const feature=(icon,name,desc)=>`<div class="feature"><div class="emoji">${icon}</div><h3>${name}</h3><p>${desc}</p></div>`;
 function landing(){render(`<main class="shell"><section class="hero"><div><div class="eyebrow">Your network. Your way.</div>
 <h1>Meet. Connect.<br>Stay in the <span class="slogan-accent">Loop.</span></h1>
-<p>A beautiful digital business card you can share by QR code, AirDrop, Messages, email, or link. Exchange details without needing an app or physical card.</p><div class="actions"><a class="btn" href="#/auth?signup">Create your free card →</a><a class="btn secondary" href="#/demo">Explore the demo</a></div></div>
-<div class="hero-art hero-phone">
-  <img src="hero-phone-demo.png" alt="Preview of the Loop digital business card and QR sharing" class="hero-phone-image">
-</div>
-</section><section class="section"><h2>Everything you need to connect</h2><p>Fast to create, delightful to share, effortless to save.</p><div class="feature-grid">${feature('▦','Instant QR sharing','Show your QR code. Anyone can scan it with their phone camera.')}${feature('↗','Share anywhere','Use your phone’s native share menu for supported apps and nearby sharing.')}${feature('⇄','Two-way exchange','Visitors share their details with you, even if they have no account.')}${feature('◉','Beautiful profiles','Your photo, contact links, bio and professional identity in one place.')}${feature('✎','Update anytime','Edit your details. Your permanent card link stays the same.')}${feature('▤','Save to contacts','Recipients can download a contact file for their phone.')}</div></section></main>`)}
+<p>A beautiful digital business card you can share by QR code, AirDrop, Messages, email, or link. Exchange details without needing an app or physical card.</p><div class="actions"><a class="btn" href="#/auth?signup">Create your free card →</a><a class="btn secondary" href="#/demo">Explore the demo</a></div></div><div class="hero-art hero-phone"><img src="hero-phone-demo.png" alt="Phone displaying a sample the Loop card alongside QR sharing" class="hero-phone-image"></div></section><section class="section"><h2>Everything you need to connect</h2><p>Fast to create, delightful to share, effortless to save.</p><div class="feature-grid">${feature('▦','Instant QR sharing','Show your QR code. Anyone can scan it with their phone camera.')}${feature('↗','Share anywhere','Use your phone’s native share menu for supported apps and nearby sharing.')}${feature('⇄','Two-way exchange','Visitors share their details with you, even if they have no account.')}${feature('◉','Beautiful profiles','Your photo, contact links, bio and professional identity in one place.')}${feature('✎','Update anytime','Edit your details. Your permanent card link stays the same.')}${feature('▤','Save to contacts','Recipients can download a contact file for their phone.')}</div></section></main>`)}
 const demo={full_name:'John Smith',title:'RN, BSN',company:'Example Medical Center',bio:'Registered nurse • Patient care and professional networking',email:'john.smith@example.com',phone:'+1 202-555-0147',website:'',linkedin:'https://www.linkedin.com/',username:'demo',photo_url:''};
 const visibleCard=p=>({...p,email:p.show_email===false?'':p.email,phone:p.show_phone===false?'':p.phone});
 function emailContactLink(p){
@@ -189,7 +189,7 @@ function wireProfileEditor(){
 }
 async function resizePhoto(file){const image=await createImageBitmap(file);try{const max=700,scale=Math.min(1,max/Math.max(image.width,image.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(image.width*scale));c.height=Math.max(1,Math.round(image.height*scale));c.getContext('2d').drawImage(image,0,0,c.width,c.height);return await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(Error('Could not process photo')),'image/jpeg',0.83))}finally{image.close()}}
 async function dashboard(){if(!configured){authPage();return}if(!me){location.hash='/auth';return}render('<div class="loader">Loading your dashboard…</div>');try{profile=await getMyProfile()}catch(e){render(`<main class="center-wrap"><div class="panel"><h2>Unable to load profile</h2><p class="error">${esc(e.message)}</p><p class="hint">Did you run schema.sql in your Supabase SQL editor?</p></div></main>`);return}if(pendingMobileView){view=pendingMobileView;pendingMobileView=null}showDashboard()}
-function showDashboard(){render(`<main class="shell layout"><aside class="side">${[['overview','⌂ Overview'],['edit','✎ Edit card'],['share','▦ Share & QR'],['contacts','⇄ Connections']].map(([v,label])=>`<button data-view="${v}" class="${view===v?'active':''}">${label}</button>`).join('')}</aside><section><div class="top-row"><div><h1>${({overview:'My Account',edit:'Edit your card',share:'Share your card',contacts:'Your connections'})[view]}</h1><p>Welcome${profile.full_name?', '+esc(profile.full_name.split(' ')[0]):''}. Your network starts here.</p></div>${profile.published?`<a href="#/u/${encodeURIComponent(profile.username)}" class="btn secondary small">View public card ↗</a>`:'<span class="hint">Card is private</span>'}</div><div id="dash-body"></div></section></main>`);document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;showDashboard()});const el=document.getElementById('dash-body');if(view==='overview'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:20px;margin-bottom:10px">Your digital identity</h2><p class="muted" style="margin-bottom:20px">Keep your card current and share it anywhere.</p>${card(profile)}</div><div class="panel"><h3 style="margin-bottom:16px">Quick share</h3>${qrBlock(profile)}<p class="hint" style="margin-top:16px">${profile.published?'Your card is public.':'Publish your card in Edit card before sharing.'}</p></div></div>`;wireCard(profile);drawQR(profile)}else if(view==='edit'){el.innerHTML=`<div class="panel"><div class="info-strip" style="margin-bottom:20px">Only publish information you're comfortable sharing publicly. Changes to your username will change your card link.</div>${profileForm(profile)}</div>`;document.getElementById('profile-form').onsubmit=saveProfile;wireProfileEditor()}else if(view==='share'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:19px">Your QR code</h2><p class="hint" style="margin:8px 0 20px">Others can scan this directly with their phone cameras.</p>${qrBlock(profile)}<div class="actions"><button class="btn" data-action="native-share">↗ Share card</button><button class="btn secondary" data-action="share-by-email">✉ Email card</button><button class="btn secondary" id="share-qr-image">↗ Share QR image</button><button class="btn secondary" id="download-qr">↓ Download QR</button></div>${!profile.published?'<p class="error">Your card is currently private. Publish it in Edit card before sharing.</p>':''}</div><div>${card(profile)}</div></div>`;wireCard(profile);drawQR(profile);document.querySelector('[data-action="share-by-email"]').onclick=()=>{const subject=`${profile.full_name||'My'} digital business card | the Loop`;const body=`Hello,\n\nHere is my digital business card:\n${profile.full_name||''}${profile.title?' — '+profile.title:''}\n${urlFor(profile.username)}\n\nScan the QR code shown on my card page, or open the link above to save my contact information.\n\nBest regards,\n${profile.full_name||''}`;window.location.href=`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;};document.getElementById('share-qr-image').onclick=async()=>{const canvas=document.getElementById('qr-canvas');if(!canvas||!canvas.width){announce('QR code is not ready');return}const base64=canvas.toDataURL('image/png').split(',')[1];const binary=atob(base64);const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);const file=new File([bytes],'the-loop-qr.png',{type:'image/png'});if(navigator.share&&navigator.canShare?.({files:[file]})){try{await navigator.share({title:`${profile.full_name} | the Loop`,text:`My digital business card: ${urlFor(profile.username)}`,files:[file]});return}catch(err){if(err.name==='AbortError')return;}}const a=document.createElement('a');a.download='the-loop-qr.png';a.href=canvas.toDataURL('image/png');a.click();announce('QR image downloaded. Attach it to your email manually.');};document.getElementById('download-qr').onclick=()=>{const canvas=document.getElementById('qr-canvas');if(!canvas)return;const a=document.createElement('a');a.download='the-loop-qr.png';a.href=canvas.toDataURL('image/png');a.click()}}else if(view==='contacts'){el.innerHTML='<div class="panel"><h3>People who exchanged details with you</h3><p class="hint" style="margin-top:8px">Private to your account.</p><div class="contact-search-row"><label for="contact-search">Search your connections</label><input id="contact-search" type="search" placeholder="Search name, email, phone, company…" autocomplete="off" aria-controls="contacts-list"><p id="contact-count" class="contact-count" aria-live="polite"></p></div><div id="contacts-list" class="loader">Loading connections…</div></div>';loadContacts()}}
+function showDashboard(){render(`<main class="shell layout"><aside class="side">${[['overview','⌂ Overview'],['edit','✎ Edit card'],['share','▦ Share & QR'],['contacts','⇄ Connections']].map(([v,label])=>`<button data-view="${v}" class="${view===v?'active':''}">${label}${v==='contacts'?'<span class="connection-badge" data-unread-count hidden></span>':''}</button>`).join('')}</aside><section><div class="top-row"><div><h1>${({overview:'My Account',edit:'Edit your card',share:'Share your card',contacts:'Your connections'})[view]}</h1><p>Welcome${profile.full_name?', '+esc(profile.full_name.split(' ')[0]):''}. Your network starts here.</p></div>${profile.published?`<a href="#/u/${encodeURIComponent(profile.username)}" class="btn secondary small">View public card ↗</a>`:'<span class="hint">Card is private</span>'}</div><div id="dash-body"></div></section></main>`);document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;showDashboard()});const el=document.getElementById('dash-body');if(view==='overview'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:20px;margin-bottom:10px">Your digital identity</h2><p class="muted" style="margin-bottom:20px">Keep your card current and share it anywhere.</p>${card(profile)}</div><div class="panel"><h3 style="margin-bottom:16px">Quick share</h3>${qrBlock(profile)}<p class="hint" style="margin-top:16px">${profile.published?'Your card is public.':'Publish your card in Edit card before sharing.'}</p></div></div>`;wireCard(profile);drawQR(profile)}else if(view==='edit'){el.innerHTML=`<div class="panel"><div class="info-strip" style="margin-bottom:20px">Only publish information you're comfortable sharing publicly. Changes to your username will change your card link.</div>${profileForm(profile)}</div>`;document.getElementById('profile-form').onsubmit=saveProfile;wireProfileEditor()}else if(view==='share'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:19px">Your QR code</h2><p class="hint" style="margin:8px 0 20px">Others can scan this directly with their phone cameras.</p>${qrBlock(profile)}<div class="actions"><button class="btn" data-action="native-share">↗ Share card</button><button class="btn secondary" data-action="share-by-email">✉ Email card</button><button class="btn secondary" id="share-qr-image">↗ Share QR image</button><button class="btn secondary" id="download-qr">↓ Download QR</button></div>${!profile.published?'<p class="error">Your card is currently private. Publish it in Edit card before sharing.</p>':''}</div><div>${card(profile)}</div></div>`;wireCard(profile);drawQR(profile);document.querySelector('[data-action="share-by-email"]').onclick=()=>{const subject=`${profile.full_name||'My'} digital business card | the Loop`;const body=`Hello,\n\nHere is my digital business card:\n${profile.full_name||''}${profile.title?' — '+profile.title:''}\n${urlFor(profile.username)}\n\nScan the QR code shown on my card page, or open the link above to save my contact information.\n\nBest regards,\n${profile.full_name||''}`;window.location.href=`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;};document.getElementById('share-qr-image').onclick=async()=>{const canvas=document.getElementById('qr-canvas');if(!canvas||!canvas.width){announce('QR code is not ready');return}const base64=canvas.toDataURL('image/png').split(',')[1];const binary=atob(base64);const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);const file=new File([bytes],'the-loop-qr.png',{type:'image/png'});if(navigator.share&&navigator.canShare?.({files:[file]})){try{await navigator.share({title:`${profile.full_name} | the Loop`,text:`My digital business card: ${urlFor(profile.username)}`,files:[file]});return}catch(err){if(err.name==='AbortError')return;}}const a=document.createElement('a');a.download='the-loop-qr.png';a.href=canvas.toDataURL('image/png');a.click();announce('QR image downloaded. Attach it to your email manually.');};document.getElementById('download-qr').onclick=()=>{const canvas=document.getElementById('qr-canvas');if(!canvas)return;const a=document.createElement('a');a.download='the-loop-qr.png';a.href=canvas.toDataURL('image/png');a.click()}}else if(view==='contacts'){el.innerHTML='<div class="panel"><h3>People who exchanged details with you</h3><p class="hint" style="margin-top:8px">Private to your account.</p><div class="connections-toolbar"><button type="button" class="btn secondary small" id="select-all-connections">☑ Select visible</button><button type="button" class="btn secondary small" id="clear-connection-selection">Clear</button><span id="connection-selection-count" class="hint" aria-live="polite">0 selected</span><button type="button" class="btn secondary small" id="export-selected-csv" disabled>↓ Download selected CSV</button><button type="button" class="btn secondary small" id="print-selected-connections" disabled>▤ Print selected / PDF</button><button type="button" class="btn secondary small connection-delete-button" id="delete-selected-connections" disabled>Delete selected</button></div><div class="connections-toolbar"><button type="button" class="btn secondary small" id="export-contacts-csv">↓ Export all CSV / Excel</button><button type="button" class="btn secondary small" id="print-contacts">▤ Print all / Save PDF</button></div><div class="contact-search-row"><label for="contact-search">Search your connections</label><input id="contact-search" type="search" placeholder="Search name, email, phone, company…" autocomplete="off" aria-controls="contacts-list"><p id="contact-count" class="contact-count" aria-live="polite"></p></div><div id="contacts-list" class="loader">Loading connections…</div></div>';loadContacts()}}
 async function saveProfile(e){e.preventDefault();const f=new FormData(e.target);const o={};for(const [key] of fields)o[key]=String(f.get(key)||'').trim();o.photo_url=String(f.get('photo_url')||'').trim();o.theme=String(f.get('theme')||'violet');if(!THEMES.includes(o.theme)){announce('Choose a valid theme');return}o.username=o.username.toLowerCase();if(!/^[a-z0-9_-]{3,30}$/.test(o.username)){announce('Username must be 3–30 letters, digits, _ or -');return}for(const key of ['website','linkedin','photo_url'])if(o[key]&&!safeUrl(o[key])){announce(`${key} must be a valid http(s) URL`);return}o.published=f.has('published');o.show_email=f.has('show_email');o.show_phone=f.has('show_phone');const btn=e.target.querySelector('button[type=submit]');btn.disabled=true;const {data,error}=await db.from('profiles').update(o).eq('id',me.id).select().single();btn.disabled=false;if(error){announce(error.code==='23505'?'Username already taken':error.message);return}
 profile = data;
 view = 'overview';
@@ -197,24 +197,164 @@ showDashboard();
 announce('Profile saved successfully!');
 window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+// Notification count is derived from private contact_exchanges and the user's private read receipt.
+function syncUnreadBadges(){
+ document.querySelectorAll('[data-unread-count]').forEach(b=>{
+  b.hidden=!unreadConnections;
+  b.textContent=unreadConnections>99?'99+':String(unreadConnections);
+  b.setAttribute('aria-label',`${unreadConnections} unread connections`);
+ });
+}
+async function refreshUnreadConnections(){
+ if(!db||!me){unreadConnections=0;syncUnreadBadges();return;}
+ try{
+  const {data:receipt,error:receiptError}=await db.from('connection_read_state').select('last_viewed_at').eq('owner_id',me.id).maybeSingle();
+  if(receiptError)throw receiptError;
+  connectionLastViewed=receipt?.last_viewed_at||null;
+  let query=db.from('contact_exchanges').select('id',{count:'exact',head:true}).eq('owner_id',me.id);
+  if(connectionLastViewed)query=query.gt('created_at',connectionLastViewed);
+  const {count,error}=await query;
+  if(error)throw error;
+  unreadConnections=count||0;
+  syncUnreadBadges();
+ }catch(e){console.warn('Unread count unavailable. Run connection-notifications.sql:',e.message);}
+}
+async function markConnectionsRead(){
+ if(!db||!me)return;
+ // Capture time before loading so any new exchanges that arrive afterward remain unread.
+ const seenAt=new Date().toISOString();
+ try{
+  const {error}=await db.from('connection_read_state').upsert({owner_id:me.id,last_viewed_at:seenAt},{onConflict:'owner_id'});
+  if(error)throw error;
+  await refreshUnreadConnections();
+ }catch(e){console.warn('Unable to mark connections as read:',e.message);}
+}
+function safeSpreadsheetCell(v){
+ const s=String(v??'').replace(/\r\n?/g,'\n');
+ // Stop Excel/Sheets from executing untrusted contact text as formulas.
+ return /^[\s]*[=+@-]/.test(s)?"'"+s:s;
+}
+function connectionsCsv(rows){
+ const headers=['Name','Email','Phone','Company','Message','Date received'];
+ const quote=v=>'"'+safeSpreadsheetCell(v).replace(/"/g,'""')+'"';
+ const content=[headers,...rows.map(c=>[c.name,c.email,c.phone,c.company,c.message,new Date(c.created_at).toLocaleString()])];
+ return '\ufeff'+content.map(row=>row.map(quote).join(',')).join('\r\n');
+}
+async function fetchAllConnections(){
+ const rows=[];
+ for(let from=0;from<100000;from+=500){
+  const {data,error}=await db.from('contact_exchanges').select('id,name,email,phone,company,message,created_at').eq('owner_id',me.id).order('created_at',{ascending:false}).range(from,from+499);
+  if(error)throw error;
+  rows.push(...(data||[]));
+  if(!data||data.length<500)break;
+ }
+ return rows;
+}
+async function exportConnectionsCsv(){
+ const button=document.getElementById('export-contacts-csv');
+ if(button)button.disabled=true;
+ try{
+  const all=await fetchAllConnections();
+  if(!all.length){announce('No connections to export yet');return;}
+  download('the-loop-connections-'+new Date().toISOString().slice(0,10)+'.csv',connectionsCsv(all),'text/csv;charset=utf-8');
+  announce(`${all.length} connections exported — opens in Excel`);
+ }catch(e){announce('Export failed: '+e.message)}finally{if(button)button.disabled=false;}
+}
+async function printConnections(selectedRows=null){
+ // Opening synchronously with click avoids pop-up blocking after the data request.
+ const win=window.open('','_blank');
+ if(!win){announce('Allow pop-ups to print or save PDF');return;}
+ win.document.write('<!doctype html><title>Preparing connections…</title><p>Preparing your connections…</p>');
+ try{
+  const all=selectedRows||await fetchAllConnections();
+  const cells=['Name','Email','Phone','Company','Message','Date received'];
+  const rows=all.map(c=>[c.name,c.email,c.phone,c.company,c.message,new Date(c.created_at).toLocaleString()]);
+  win.document.open();
+  win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>the Loop — Connections</title><style>body{font:12px Arial,sans-serif;color:#172338;margin:24px}h1{font-size:22px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d6deea;padding:8px;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#edf2fa}@page{size:landscape;margin:12mm}@media print{thead{display:table-header-group}tr{break-inside:avoid}}</style></head><body><h1>the Loop — Connections</h1><p>'+all.length+' connections · '+esc(new Date().toLocaleString())+'</p><table><thead><tr>'+cells.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(x=>'<td>'+esc(x||'')+'</td>').join('')+'</tr>').join('')+'</tbody></table></body></html>');
+  win.document.close();
+  win.focus();
+  win.print();
+ }catch(e){win.close();announce('Could not prepare print: '+e.message);}
+}
 async function loadContacts(){
-  const target=document.getElementById('contacts-list');
-  const search=document.getElementById('contact-search');
-  const counter=document.getElementById('contact-count');
-  if(!target||!search||!counter)return;
-  const {data,error}=await db.from('contact_exchanges').select('name,email,phone,company,message,created_at').eq('owner_id',me.id).order('created_at',{ascending:false}).limit(100);
-  if(!target.isConnected)return;
-  if(error){target.innerHTML=`<div class="error">${esc(error.message)}</div>`;return}
-  const contacts=data||[];
-  target.className='';
-  const draw=()=>{
-    const query=search.value.trim().toLocaleLowerCase();
-    const filtered=contacts.filter(c=>[c.name,c.email,c.phone,c.company,c.message].some(v=>String(v||'').toLocaleLowerCase().includes(query)));
-    counter.textContent=`${filtered.length} of ${contacts.length} connections${contacts.length===100?' (latest 100 loaded)':''}`;
-    target.innerHTML=filtered.length?filtered.map(c=>`<div class="contact-item"><h3>${esc(c.name)}</h3><p>${esc(c.email)} ${c.phone?'· '+esc(c.phone):''}</p>${c.company?`<p>${esc(c.company)}</p>`:''}${c.message?`<p>“${esc(c.message)}”</p>`:''}<p class="contact-date">${esc(new Date(c.created_at).toLocaleString())}</p></div>`).join(''):`<div class="empty">${query?'No connections match your search.':'No connections yet. Share your card to get started!'}</div>`;
-  };
-  search.addEventListener('input',draw);
-  draw();
+ const target=document.getElementById('contacts-list');
+ const search=document.getElementById('contact-search');
+ const counter=document.getElementById('contact-count');
+ if(!target||!search||!counter||!me)return;
+ const ownerId=me.id;
+ // Selection is limited to the displayed latest 100; exports marked "all" fetch the entire database.
+ let contacts=[];
+ const selected=new Set();
+ const selectAll=document.getElementById('select-all-connections');
+ const clear=document.getElementById('clear-connection-selection');
+ const selectedCsv=document.getElementById('export-selected-csv');
+ const selectedPrint=document.getElementById('print-selected-connections');
+ const selectedDelete=document.getElementById('delete-selected-connections');
+ const selectedCount=document.getElementById('connection-selection-count');
+ const selectedRows=()=>contacts.filter(c=>selected.has(c.id));
+ const filteredRows=()=>{
+  const q=search.value.trim().toLocaleLowerCase();
+  return contacts.filter(c=>[c.name,c.email,c.phone,c.company,c.message].some(v=>String(v||'').toLocaleLowerCase().includes(q)));
+ };
+ function updateSelectionUI(){
+  const count=selected.size;
+  selectedCount.textContent=count+' selected';
+  selectedCsv.disabled=selectedPrint.disabled=selectedDelete.disabled=count===0;
+  clear.disabled=count===0;
+  selectAll.disabled=filteredRows().length===0;
+ }
+ function draw(){
+  const filtered=filteredRows();
+  counter.textContent=`${filtered.length} of ${contacts.length} connections${contacts.length===100?' (latest 100 shown; export all includes older records)':''}`;
+  target.innerHTML=filtered.length?filtered.map(c=>`<div class="contact-item connection-select-item"><label class="connection-checkbox-label"><input type="checkbox" class="connection-select" data-id="${esc(c.id)}" ${selected.has(c.id)?'checked':''} aria-label="Select ${esc(c.name||'connection')}"><span><strong>${esc(c.name||'Unnamed contact')}</strong><span class="contact-item-detail">${esc(c.email)} ${c.phone?'· '+esc(c.phone):''}</span>${c.company?`<span class="contact-item-detail">${esc(c.company)}</span>`:''}${c.message?`<span class="contact-item-detail">“${esc(c.message)}”</span>`:''}<span class="contact-item-detail contact-date">${esc(new Date(c.created_at).toLocaleString())}</span></span></label></div>`).join(''):`<div class="empty">${search.value?'No connections match your search.':'No connections yet. Share your card to get started!'}</div>`;
+  updateSelectionUI();
+ }
+ async function reload(){
+  const {data,error}=await db.from('contact_exchanges').select('id,name,email,phone,company,message,created_at').eq('owner_id',ownerId).order('created_at',{ascending:false}).limit(100);
+  if(!target.isConnected||me?.id!==ownerId)return false;
+  if(error){target.innerHTML=`<div class="error">${esc(error.message)}</div>`;return false;}
+  contacts=data||[];
+  // Discard checked IDs removed elsewhere or by the current delete.
+  const ids=new Set(contacts.map(c=>c.id));
+  for(const id of selected)if(!ids.has(id))selected.delete(id);
+  target.className='';draw();return true;
+ }
+ target.addEventListener('change',e=>{
+  const box=e.target.closest('input.connection-select');if(!box)return;
+  if(box.checked)selected.add(box.dataset.id);else selected.delete(box.dataset.id);
+  updateSelectionUI();
+ });
+ search.addEventListener('input',draw);
+ selectAll.addEventListener('click',()=>{filteredRows().forEach(c=>selected.add(c.id));draw();});
+ clear.addEventListener('click',()=>{selected.clear();draw();});
+ selectedCsv.addEventListener('click',()=>{
+  const rows=selectedRows();if(!rows.length)return;
+  download('the-loop-selected-connections-'+new Date().toISOString().slice(0,10)+'.csv',connectionsCsv(rows),'text/csv;charset=utf-8');
+  announce(`${rows.length} selected connections exported`);
+ });
+ selectedPrint.addEventListener('click',()=>{const rows=selectedRows();if(rows.length)printConnections(rows);});
+ selectedDelete.addEventListener('click',async()=>{
+  const rows=selectedRows();if(!rows.length)return;
+  if(!window.confirm(`Permanently delete ${rows.length} selected connection${rows.length===1?'':'s'}? This cannot be undone. Export them first if you want a backup.`))return;
+  selectedDelete.disabled=true;
+  try{
+   const ids=rows.map(c=>c.id);
+   // Delete by both owner_id and ID; Supabase RLS policy adds an independent owner check.
+   for(let i=0;i<ids.length;i+=100){
+    const {data,error}=await db.from('contact_exchanges').delete().eq('owner_id',ownerId).in('id',ids.slice(i,i+100)).select('id');
+    if(error)throw error;
+    if((data||[]).length!==ids.slice(i,i+100).length)throw Error('Some records could not be deleted. Refresh and check remaining connections.');
+   }
+   selected.clear();
+   await reload();
+   await refreshUnreadConnections();
+   announce(`${rows.length} connection${rows.length===1?'':'s'} deleted`);
+  }catch(e){announce('Delete failed: '+e.message);await reload();}
+  finally{updateSelectionUI();}
+ });
+ document.getElementById('export-contacts-csv')?.addEventListener('click',exportConnectionsCsv);
+ document.getElementById('print-contacts')?.addEventListener('click',()=>printConnections());
+ if(await reload())await markConnectionsRead();
 }
 async function resetPage(){
   if(!configured){render('<main class="center-wrap"><div class="panel">Password reset is unavailable until Supabase is configured.</div></main>');return}
@@ -234,10 +374,11 @@ if(db){
       resetPage();
       return;
     }
-    if(event==='SIGNED_OUT' && !recoveryMode && !onResetUrl())navigate();
+    if(event==='SIGNED_OUT' && !recoveryMode && !onResetUrl()){unreadConnections=0;syncUnreadBadges();if(connectionPoll){clearInterval(connectionPoll);connectionPoll=null;}navigate();}
   });
   db.auth.getSession().then(({data})=>{
     me=data.session?.user||null;
+     if(me){refreshUnreadConnections();if(connectionPoll)clearInterval(connectionPoll);connectionPoll=setInterval(refreshUnreadConnections,60000);}
     // Password recovery event takes precedence over ordinary account navigation.
     if(onResetUrl()||recoveryMode)resetPage();
     else navigate();
