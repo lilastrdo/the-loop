@@ -474,4 +474,41 @@ html[data-mode="dark"] .hero h1 .slogan-accent {
     }
 }
 
+/* the Loop — Equal-height public card columns */
+
+/* Desktop: all three columns stretch to equal height */
+@media (min-width: 1100px) {
+
+    .public-wrap.public-three-column {
+        align-items: stretch !important;
+    }
+
+    /* Stretch every column to the tallest one */
+    .public-three-column > .profile-view,
+    .public-three-column > .panel {
+        height: 100% !important;
+        min-height: 0;
+        margin: 0 !important;
+    }
+
+    /* Keep the profile card content at the top */
+    .public-three-column > .profile-view {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Keep the QR section content centered */
+    .public-three-column > .panel:not(.form-section) {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    /* Keep the exchange form content at the top */
+    .public-three-column > .form-section {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+    }
+}
 
