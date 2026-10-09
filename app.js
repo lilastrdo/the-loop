@@ -71,7 +71,7 @@ function vcard(p){
 }
 function download(name,data,type){const blob=new Blob([data],{type}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 function saveContact(p){download((p.full_name||'contact').trim().replace(/[^a-z\d-_]/gi,'_')+'.vcf',vcard(p),'text/vcard;charset=utf-8');announce('Contact file downloaded')}
-async function share(p){const url=p.username==='demo'?siteRoot()+'/#/demo':urlFor(p.username||'demo');try{if(navigator.share){await navigator.share({title:`${p.full_name} | the Loop`,text:`Connect with ${p.full_name}`,url});return}}catch(e){if(e.name==='AbortError')return;}copy(url)}
+async function share(p){const url=p.username==='demo'?siteRoot()+'#/demo':urlFor(p.username||'demo');try{if(navigator.share){await navigator.share({title:`${p.full_name} | the Loop`,text:`Connect with ${p.full_name}`,url});return}}catch(e){if(e.name==='AbortError')return;}copy(url)}
 async function copy(s){try{await navigator.clipboard.writeText(s);announce('Link copied to clipboard')}catch{announce('Copy the link shown on screen')}}
 function wireCard(p){document.querySelectorAll('[data-action="save-contact"]').forEach(b=>b.onclick=()=>saveContact(p));document.querySelectorAll('[data-action="native-share"]').forEach(b=>b.onclick=()=>share(p));document.querySelectorAll('[data-action="copy-link"]').forEach(b=>b.onclick=()=>copy(urlFor(p.username)))}
 
@@ -90,7 +90,7 @@ function drawQR(p) {
 
   try {
     const qr = window.qrcode(0, 'M');
-    qr.addData(p.username==='demo'?siteRoot()+'/#/demo':urlFor(p.username));
+    qr.addData(p.username==='demo'?siteRoot()+'#/demo':urlFor(p.username));
     qr.make();
 
     const count = qr.getModuleCount();
@@ -131,7 +131,7 @@ function drawQR(p) {
 
 function qrBlock(p){return `<div class="qrcard"><canvas id="qr-canvas" aria-label="QR code for public card"></canvas><p class="hint" style="margin-top:12px;text-align:center">Scan with your phone camera</p></div><div class="public-url" style="margin:12px 0">${esc(urlFor(p.username))}</div><button class="btn secondary block" data-action="copy-link">Copy card link</button>`}
 function demoPage(){
-  const demoUrl=siteRoot()+'/#/demo';
+  const demoUrl=siteRoot()+'#/demo';
   render(`<main class="demo-page"><div class="demo-intro"><span class="demo-tag">● LIVE DEMO</span><h1>A Smarter Way to <span>Connect</span></h1><p>See how the Loop makes it easy to share your professional identity, grow your network, and stay in touch.</p></div><div class="demo-layout"><div class="demo-profile">${card(demo)}</div><aside class="demo-qr-panel"><div class="demo-qr-icon" aria-hidden="true">▦</div><h2>Scan or share</h2><p>Scan this QR code with your phone to explore the Loop demo.</p><div class="demo-qr-box"><canvas id="qr-canvas" aria-label="Scannable QR code linking to the Loop demo"></canvas></div><p class="demo-qr-caption">Open with your phone camera<br>No app required</p><button type="button" class="btn secondary block" id="demo-copy-link">Copy demo link</button></aside></div><div class="demo-exchange panel"><h3>Try contact exchange</h3><p class="hint">Explore the form below. This is a demonstration: no contact details are submitted or stored.</p>${exchangeForm(true)}</div><p class="demo-disclaimer">John Smith is a fictional example. The demo phone number and LinkedIn profile are illustrative only.</p></main>`);
   wireCard(demo);
   // Demo-only contact actions must never initiate a call or open a nonexistent social profile.
