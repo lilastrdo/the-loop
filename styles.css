@@ -364,3 +364,36 @@ html[data-mode="dark"] .hero h1 .slogan-accent {
     }
 }
 
+/* Homepage phone preview — prevent clipping */
+.hero-art.hero-phone {
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    background: transparent;
+    border-radius: 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.hero-art.hero-phone::before,
+.hero-art.hero-phone::after {
+    display: none;
+}
+
+.hero-phone-image {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
+@media (max-width: 900px) {
+    .hero-art.hero-phone {
+        max-width: 650px;
+        margin: 0 auto;
+    }
+}
+
