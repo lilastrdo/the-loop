@@ -112,3 +112,33 @@ html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
 #contact-search::placeholder,html[data-mode="dark"] #contact-search::placeholder {color:#64748b!important}
 #contact-search:focus {outline:2px solid #6555e8;outline-offset:2px}
 .contact-count {margin:8px 0 0;font-size:13px;color:var(--muted)}
+
+
+/* FIX: Connections text visibility in ALL modes */
+
+.contact-item,
+html[data-mode="dark"] .contact-item {
+    background: #FFFFFF !important;
+    color: #334155 !important;
+}
+
+/* Contact names */
+.contact-item h3,
+html[data-mode="dark"] .contact-item h3 {
+    color: #182335 !important;
+    opacity: 1 !important;
+}
+
+/* Emails, phone numbers, company, messages */
+.contact-item p,
+html[data-mode="dark"] .contact-item p {
+    color: #334155 !important;
+    opacity: 1 !important;
+}
+
+/* Date and time */
+.contact-item .hint,
+html[data-mode="dark"] .contact-item .hint {
+    color: #52657D !important;
+    opacity: 1 !important;
+}
