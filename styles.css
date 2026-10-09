@@ -512,3 +512,25 @@ html[data-mode="dark"] .hero h1 .slogan-accent {
     }
 }
 
+/* Connection count and export toolbar (both appearance modes) */
+.connection-badge { display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:1px 6px;margin-left:7px;border-radius:999px;background:#dc344d;color:#fff;font-size:11px;font-weight:800;line-height:1;vertical-align:middle; }
+.connection-badge[hidden] {display:none!important;}
+.connections-toolbar { display:flex;flex-wrap:wrap;gap:10px;margin:17px 0 4px; }
+.connections-toolbar .btn { white-space:normal; }
+@media(max-width:540px){.connections-toolbar .btn{flex:1 1 100%;}}
+/* Preserve three-column desktop public card layout, responsive on smaller screens */
+@media(min-width:1100px){.public-wrap.public-three-column{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr) minmax(0,1fr);align-items:stretch;gap:22px;max-width:1450px;width:100%;padding:40px 24px 80px}.public-three-column>.profile-view,.public-three-column>.panel{min-width:0;width:100%;height:100%;margin:0!important}.public-three-column>.profile-view{display:flex;flex-direction:column}.public-three-column>.panel:not(.form-section){display:flex;flex-direction:column;justify-content:center}}
+@media(min-width:768px) and (max-width:1099px){.public-wrap.public-three-column{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));max-width:850px;gap:18px}.public-three-column>.profile-view,.public-three-column>.panel{min-width:0;margin:0!important}.public-three-column>.form-section{grid-column:1/-1}}
+@media(max-width:767px){.public-wrap.public-three-column{display:flex;flex-direction:column;gap:18px;max-width:520px}.public-three-column>.profile-view,.public-three-column>.panel{width:100%;margin:0!important}}
+
+/* Multi-select connections; selection does not change other pages */
+.connections-toolbar{align-items:center}
+.connection-select-item{padding:14px 16px!important}
+.connection-checkbox-label{display:flex;align-items:flex-start;gap:14px;cursor:pointer;line-height:1.5}
+.connection-checkbox-label input{width:19px;height:19px;margin:3px 0 0;flex-shrink:0;accent-color:#6555e8;cursor:pointer}
+.connection-checkbox-label strong{display:block;font-size:15px;color:#182335}
+.connection-checkbox-label .contact-item-detail{display:block;font-size:13px;color:#334155;margin-top:3px;overflow-wrap:anywhere}
+.connection-delete-button:not(:disabled){color:#b42334!important;border-color:#d8a2ac!important;background:#fff4f4!important}
+.connection-delete-button:disabled{opacity:.5}
+#connection-selection-count{white-space:nowrap}
+
