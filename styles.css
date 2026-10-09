@@ -292,3 +292,37 @@ html[data-mode="dark"] .hero h1 .slogan-accent {
     color: #6051F4;
     display: inline-block;
 }
+
+/* FIX — Keep login/signup logo properly sized */
+.auth .brand img.brand-logo {
+    display: block !important;
+    width: 46px !important;
+    height: 46px !important;
+    max-width: 46px !important;
+    max-height: 46px !important;
+    object-fit: contain !important;
+    border: 2px solid #FFFFFF;
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+
+/* Keep logo and brand name aligned */
+.auth .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 21px;
+    font-weight: 800;
+    margin-bottom: 18px;
+}
+
+/* Mobile login logo */
+@media (max-width: 767px) {
+    .auth .brand img.brand-logo {
+        width: 42px !important;
+        height: 42px !important;
+        max-width: 42px !important;
+        max-height: 42px !important;
+    }
+}
+
