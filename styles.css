@@ -192,37 +192,6 @@ html[data-mode="dark"] .header {
         height: 42px !important;
     }
 }
-
-/* The Loop — Executive Navy Header */
-.header,
-html[data-mode="dark"] .header {
-    background: #243449 !important;
-    border-bottom: 1px solid #40536A;
-}
-
-/* White logo text */
-.header .brand {
-    color: #FFFFFF !important;
-}
-
-/* Infinity logo with subtle silver border */
-.brand img.brand-logo {
-    width: 46px !important;
-    height: 46px !important;
-    object-fit: contain;
-    border: 1.5px solid #8FA3BD;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-    flex-shrink: 0;
-}
-
-/* Mobile logo */
-@media (max-width: 767px) {
-    .brand img.brand-logo {
-        width: 42px !important;
-        height: 42px !important;
-    }
-}
 .brand-logo {
   border: 1.5px solid #B0B8C5;   /* silver */
   border-radius: 12px;
