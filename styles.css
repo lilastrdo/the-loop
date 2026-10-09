@@ -215,3 +215,12 @@ html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
 }
 .demo-disclaimer{line-height:1.6}
 @media(max-width:740px){.demo-layout{gap:16px}.demo-page{padding-left:16px;padding-right:16px}.demo-qr-panel{padding:26px 18px}}
+
+/* The Loop — Official slogan */
+.slogan-accent {
+    color: #8FA3BD;
+}
+
+.hero h1 {
+    line-height: 1.2;
+}
