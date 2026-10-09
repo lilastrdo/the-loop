@@ -21,12 +21,34 @@ function landing(){render(`<main class="shell"><section class="hero"><div><div c
 const demo={full_name:'John Smith',title:'RN, BSN',company:'Example Medical Center',bio:'Registered nurse • Patient care and professional networking',email:'john.smith@example.com',phone:'',website:'',linkedin:'',username:'demo',photo_url:''};
 const visibleCard=p=>({...p,email:p.show_email===false?'':p.email,phone:p.show_phone===false?'':p.phone});
 function emailContactLink(p){
-  const subject=`Hello ${p.full_name||'there'} — via the Loop`;
-  const body=`Hello ${p.full_name||'there'},\n\nI came across your digital business card on the Loop and would like to connect.\n\nYour card: ${urlFor(p.username||'demo')}\n\nBest regards,`;
+  const firstName=String(p.full_name||'there').trim().split(/\s+/)[0];
+  const subject='Connecting Through the Loop';
+  const body=`Hi ${firstName},\n\nI came across your digital business card on the Loop and wanted to reach out.\n\nBest regards,`;
   return `mailto:${encodeURIComponent(p.email||'')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 function card(p){p=visibleCard(p);return `<article class="profile-view theme-${esc(THEMES.includes(p.theme)?p.theme:"violet")}"><div class="cover"></div><div class="identity">${avatar(p)}<h2>${esc(p.full_name||'Unnamed profile')}</h2><div class="title">${esc(p.title||'')}</div>${p.company?`<p class="muted" style="margin-top:6px">${esc(p.company)}</p>`:''}<p class="bio">${esc(p.bio||'')}</p><div class="social">${p.email?`<a href="${esc(emailContactLink(p))}">✉ Email</a>`:''}${p.phone?`<a href="tel:${esc(p.phone.replace(/[^+\d]/g,''))}">☎ Phone</a>`:''}${safeUrl(p.linkedin)?`<a href="${esc(safeUrl(p.linkedin))}" target="_blank" rel="noopener noreferrer">in LinkedIn</a>`:''}${safeUrl(p.website)?`<a href="${esc(safeUrl(p.website))}" target="_blank" rel="noopener noreferrer">↗ Website</a>`:''}</div><button class="btn block" data-action="save-contact">↓ Save Contact</button><button class="btn secondary block" data-action="native-share">↗ Share This Card</button></div></article>`}
-function vcard(p){p=visibleCard(p);const clean=v=>String(v??'').replace(/\\/g,'\\\\').replace(/\r?\n/g,'\\n').replace(/[,;]/g,c=>'\\'+c);return ['BEGIN:VCARD','VERSION:3.0','FN:'+clean(p.full_name),'ORG:'+clean(p.company),'TITLE:'+clean(p.title),...(p.email?['EMAIL:'+clean(p.email)]:[]),...(p.phone?['TEL:'+clean(p.phone)]:[]),...(safeUrl(p.website)?['URL:'+clean(p.website)]:[]),'END:VCARD'].join('\r\n')}
+function vcard(p){
+  p=visibleCard(p);
+  // Build a standard vCard 3.0 for import into Android/iOS Contacts.
+  const clean=v=>String(v??'').replace(/\\/g,'\\\\').replace(/\r?\n/g,'\\n').replace(/[,;]/g,c=>'\\'+c);
+  const fullName=String(p.full_name||'').trim();
+  const parts=fullName.split(/\s+/);
+  const surname=parts.length>1?parts.pop():'';
+  const given=parts.join(' ');
+  const lines=['BEGIN:VCARD','VERSION:3.0','FN:'+clean(fullName),
+    'N:'+clean(surname)+';'+clean(given)+';;;'];
+  if(p.company)lines.push('ORG:'+clean(p.company));
+  if(p.title)lines.push('TITLE:'+clean(p.title));
+  if(p.email)lines.push('EMAIL;TYPE=INTERNET:'+clean(p.email));
+  if(p.phone)lines.push('TEL;TYPE=CELL:'+clean(p.phone));
+  if(safeUrl(p.website))lines.push('URL:'+safeUrl(p.website));
+  if(safeUrl(p.linkedin))lines.push('URL;TYPE=LinkedIn:'+safeUrl(p.linkedin));
+  if(p.username&&p.username!=='demo')lines.push('URL;TYPE=theLoop:'+urlFor(p.username));
+  if(safeUrl(p.photo_url))lines.push('PHOTO;VALUE=URI:'+safeUrl(p.photo_url));
+  if(p.bio)lines.push('NOTE:'+clean(p.bio));
+  lines.push('END:VCARD');
+  return lines.join('\r\n');
+}
 function download(name,data,type){const blob=new Blob([data],{type}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 function saveContact(p){download((p.full_name||'contact').trim().replace(/[^a-z\d-_]/gi,'_')+'.vcf',vcard(p),'text/vcard;charset=utf-8');announce('Contact file downloaded')}
 async function share(p){const url=urlFor(p.username||'demo');try{if(navigator.share){await navigator.share({title:`${p.full_name} | the Loop`,text:`Connect with ${p.full_name}`,url});return}}catch(e){if(e.name==='AbortError')return;}copy(url)}
