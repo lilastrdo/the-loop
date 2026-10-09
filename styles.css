@@ -137,3 +137,4 @@ html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
 .demo-exchange>.hint{margin-top:9px}
 .demo-disclaimer{font-size:12px;text-align:center;color:var(--muted);margin-top:19px}
 @media(max-width:740px){.demo-page{padding:30px 16px 60px}.demo-layout{grid-template-columns:minmax(0,1fr)}.demo-qr-panel{min-height:390px}.demo-intro{margin-bottom:25px}.demo-intro h1{letter-spacing:-.8px}}
+<div class="brand"><img src="loop-logo.png" alt="the Loop logo" class="brand-logo">the Loop</div>
