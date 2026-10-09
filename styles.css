@@ -138,24 +138,30 @@ html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
 .demo-disclaimer{font-size:12px;text-align:center;color:var(--muted);margin-top:19px}
 @media(max-width:740px){.demo-page{padding:30px 16px 60px}.demo-layout{grid-template-columns:minmax(0,1fr)}.demo-qr-panel{min-height:390px}.demo-intro{margin-bottom:25px}.demo-intro h1{letter-spacing:-.8px}}
 
-/* Full navy square infinity logo — header and authentication pages */
-.brand-logo {display:block;width:46px;height:46px;object-fit:contain;border-radius:12px;flex:0 0 auto}
-@media(max-width:767px){.header .brand-logo{width:42px;height:42px;border-radius:11px}}
+/* the Loop — Slate Navy header and white-bordered infinity logo */
+.header,
+html[data-mode="dark"] .header {
+    background: #243449 !important;
+    border-bottom: 1px solid #40536A;
+}
 
-/* FIX: Keep the Loop logo properly sized */
+.header .brand {
+    color: #FFFFFF !important;
+}
 
 .brand img.brand-logo {
+    display: block;
     width: 46px !important;
     height: 46px !important;
     max-width: 46px !important;
     max-height: 46px !important;
-    object-fit: contain !important;
+    object-fit: contain;
+    border: 1.5px solid #FFFFFF;
     border-radius: 12px;
-    display: block;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
     flex-shrink: 0;
 }
 
-/* Mobile logo */
 @media (max-width: 767px) {
     .brand img.brand-logo {
         width: 42px !important;
@@ -163,37 +169,4 @@ html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
         max-width: 42px !important;
         max-height: 42px !important;
     }
-}
-
-/* The Loop — Professional header color */
-.header,
-html[data-mode="dark"] .header {
-    background: #243449 !important;
-    border-bottom: 1px solid #40536A;
-}
-
-/* White brand text */
-.header .brand {
-    color: #FFFFFF !important;
-}
-
-/* Keep the infinity logo at icon size */
-.header .brand-logo {
-    width: 46px !important;
-    height: 46px !important;
-    object-fit: contain;
-    border-radius: 12px;
-}
-
-/* Mobile */
-@media (max-width: 767px) {
-    .header .brand-logo {
-        width: 42px !important;
-        height: 42px !important;
-    }
-}
-.brand-logo {
-  border: 1.5px solid #B0B8C5;   /* silver */
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
 }
