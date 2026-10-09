@@ -240,3 +240,27 @@ html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
     border-color:#5849e8 !important;
 }
 .demo-profile .profile-view .btn:not(.secondary):hover {background:#4535ca !important;}
+
+
+/* Demo mobile polish — preserve card, QR, contact actions and two-column desktop layout */
+.demo-profile .identity { padding-bottom: 20px; }
+.demo-profile .identity .bio { margin-top: 10px; line-height: 1.55; }
+.demo-profile .social { column-gap: 11px; row-gap: 10px; padding: 15px 0; }
+.demo-profile .social a { display:inline-flex; align-items:center; justify-content:center; min-height: 39px; }
+@media (max-width: 740px) {
+  .demo-page { padding: 40px 20px 56px; }
+  .demo-intro { margin-bottom: 22px; }
+  .demo-layout { gap: 14px; }
+  .demo-profile .profile-view .cover { height: 116px; }
+  .demo-profile .identity { padding: 0 18px 17px; }
+  .demo-profile .identity .avatar { width: 104px; height: 104px; margin-top: -52px; }
+  .demo-profile .identity h2 { margin-top: 3px; }
+  .demo-profile .identity .bio { margin-top: 10px; font-size: 13px; line-height: 1.55; }
+  .demo-profile .social { column-gap: 11px; row-gap: 9px; padding: 14px 0; }
+  .demo-profile .social a { min-height: 38px; }
+  .demo-qr-panel { min-height: 0; padding: 24px 18px; gap: 11px; }
+}
+@media (max-width: 380px) {
+  .demo-page { padding-left: 14px; padding-right: 14px; }
+  .demo-profile .identity { padding-left: 14px; padding-right: 14px; }
+}
