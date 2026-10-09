@@ -264,3 +264,31 @@ html[data-mode="dark"] .profile-view .btn.secondary:hover{background:#f1f2fa}
   .demo-page { padding-left: 14px; padding-right: 14px; }
   .demo-profile .identity { padding-left: 14px; padding-right: 14px; }
 }
+
+/* the Loop — Official slogan in both modes */
+
+/* Light mode */
+.hero h1 {
+    color: #142034;
+}
+
+/* Dark mode */
+html[data-mode="dark"] .hero h1 {
+    color: #F5F7FF;
+}
+
+/* Same purple gradient in BOTH modes */
+.hero h1 .slogan-accent,
+html[data-mode="dark"] .hero h1 .slogan-accent {
+    background: linear-gradient(
+        135deg,
+        #776BFF 0%,
+        #6051F4 50%,
+        #4432A4 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: #6051F4;
+    display: inline-block;
+}
