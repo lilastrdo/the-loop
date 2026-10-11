@@ -361,7 +361,7 @@ function showReactivationPage(){
 
 function showSettingsPage(){
  const el=document.getElementById('dash-body');
- el.innerHTML=`<div class="panel" style="max-width:850px"><h2>Account Security</h2><p class="hint" style="margin:8px 0 20px">Manage how you sign in to the Loop.</p><div class="panel" style="margin-bottom:16px"><h3>Passkey Login</h3><p class="hint" style="margin:8px 0 14px">Use your fingerprint, Face ID, or device screen lock. Your biometrics stay on your device.</p><button type="button" class="btn" id="setup-passkey">Set Up Passkey</button><p id="passkey-status" class="hint" role="status" style="margin-top:12px"></p></div><div class="panel"><h3>Password</h3><p class="hint" style="margin:8px 0 14px">Email yourself a secure link to change your account password.</p><button type="button" class="btn secondary" id="change-password">Change Password</button><p id="password-status" class="hint" role="status" style="margin-top:12px"></p></div><h2 style="margin:28px 0 14px">Account Management</h2><div class="panel" style="margin-bottom:16px"><h3>Deactivate Account</h3><p class="hint" style="margin:8px 0 14px">Hide your public card and stop new contact exchanges. Your profile and connections are preserved. You can reactivate by signing in again.</p><button type="button" class="btn secondary" id="deactivate-account">Deactivate Account</button><p id="deactivate-status" class="hint" role="status" style="margin-top:12px"></p></div><div class="panel"><h3>Delete Account</h3><p class="hint" style="margin:8px 0 14px">Permanent account deletion will require identity confirmation and secure removal of your records and uploaded files.</p><button type="button" class="btn secondary" disabled>Delete Account — Coming soon</button></div></div>`;
+ el.innerHTML=`<div class="panel" style="max-width:850px"><h2>Account Security</h2><p class="hint" style="margin:8px 0 20px">Manage how you sign in to the Loop.</p><div class="panel" style="margin-bottom:16px"><h3>Passkey Login</h3><p class="hint" style="margin:8px 0 14px">Use your fingerprint, Face ID, or device screen lock. Your biometrics stay on your device.</p><button type="button" class="btn" id="setup-passkey">Set Up Passkey</button><p id="passkey-status" class="hint" role="status" style="margin-top:12px"></p></div><div class="panel"><h3>Password</h3><p class="hint" style="margin:8px 0 14px">Email yourself a secure link to change your account password.</p><button type="button" class="btn secondary" id="change-password">Change Password</button><p id="password-status" class="hint" role="status" style="margin-top:12px"></p></div><h2 style="margin:28px 0 14px">Account Management</h2><div class="panel" style="margin-bottom:16px"><h3>Deactivate Account</h3><p class="hint" style="margin:8px 0 14px">Hide your public card and stop new contact exchanges. Your profile and connections are preserved. You can reactivate by signing in again.</p><button type="button" class="btn secondary" id="deactivate-account">Deactivate Account</button><p id="deactivate-status" class="hint" role="status" style="margin-top:12px"></p></div><div class="panel"><h3>Delete Account</h3><p class="hint" style="margin:8px 0 14px">Permanently remove your account, digital card, saved connections, uploaded photos, and login credentials. This cannot be undone. Unlike deactivation, deletion is permanent.</p><button type="button" class="btn secondary" id="delete-account-request">Request Deletion Code</button><p id="delete-account-status" role="status" class="hint" style="margin-top:12px"></p><div id="delete-account-verify" hidden style="margin-top:14px;padding:16px;border:1px solid var(--line,#dbe2ea);border-radius:12px"><p class="hint" style="margin-bottom:12px">Check your verified login email for an 8-digit code. It expires in 10 minutes.</p><div class="field"><label for="delete-account-code">8-digit verification code</label><input id="delete-account-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{8}" maxlength="8" placeholder="12345678"></div><div class="field"><label for="delete-account-confirmation">Type DELETE to confirm permanent deletion</label><input id="delete-account-confirmation" type="text" autocomplete="off" placeholder="DELETE"></div><button type="button" class="btn" id="delete-account-confirm" style="background:#b91c1c;color:#ffffff">Permanently Delete My Account</button><button type="button" class="btn secondary" id="delete-account-cancel" style="margin-left:8px">Cancel</button></div></div></div>`;
  const setup=document.getElementById('setup-passkey'),msg=document.getElementById('passkey-status');
  setup.onclick=async()=>{setup.disabled=true;msg.textContent='Waiting for your device…';try{
   if(!me?.email_confirmed_at&&!me?.phone_confirmed_at)throw Error('Confirm your email address before setting up a passkey.');
@@ -388,6 +388,48 @@ function showSettingsPage(){
   }catch(err){status.textContent='Unable to deactivate: '+err.message;btn.disabled=false;}
  };
  document.getElementById('change-password').onclick=async()=>{const btn=document.getElementById('change-password'),status=document.getElementById('password-status');btn.disabled=true;status.textContent='Sending password-reset email…';try{const {error}=await db.auth.resetPasswordForEmail(me.email,{redirectTo:resetUrl()});if(error)throw error;status.textContent='Check your email for a secure password-reset link.';}catch(e){status.textContent='Could not send reset email: '+e.message;}finally{btn.disabled=false;}};
+ // Permanent deletion is a separate two-step server process: verified email code + explicit DELETE.
+ const deleteRequest=document.getElementById('delete-account-request');
+ const deleteConfirm=document.getElementById('delete-account-confirm');
+ const deleteCancel=document.getElementById('delete-account-cancel');
+ const deleteVerify=document.getElementById('delete-account-verify');
+ const deleteStatus=document.getElementById('delete-account-status');
+ const deleteCode=document.getElementById('delete-account-code');
+ const deleteWord=document.getElementById('delete-account-confirmation');
+ async function callDeletionService(payload){
+  const {data,error}=await db.auth.getSession();
+  const token=data?.session?.access_token;
+  if(error||!token)throw Error('Your session expired. Please sign in again.');
+  const endpoint=cfg.supabaseUrl.replace(/\/$/,'')+'/functions/v1/delete-account';
+  const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabaseAnonKey,'Authorization':'Bearer '+token},body:JSON.stringify(payload)});
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw Error(result.error||'Could not complete request ('+response.status+').');
+  return result;
+ }
+ deleteRequest.onclick=async()=>{
+  deleteRequest.disabled=true;deleteStatus.textContent='Sending verification code…';
+  try{
+   const result=await callDeletionService({action:'request'});
+   deleteVerify.hidden=false;deleteStatus.textContent=result.message||'Check your login email for your verification code.';
+   deleteCode.focus();
+  }catch(error){deleteStatus.textContent='Could not send code: '+error.message;}
+  finally{if(deleteRequest.isConnected)deleteRequest.disabled=false;}
+ };
+ deleteCancel.onclick=()=>{deleteVerify.hidden=true;deleteCode.value='';deleteWord.value='';deleteStatus.textContent='Account deletion cancelled. Your account is unchanged.';};
+ deleteConfirm.onclick=async()=>{
+  const code=deleteCode.value.trim();
+  if(!/^\d{8}$/.test(code)){deleteStatus.textContent='Enter the eight-digit email verification code.';return;}
+  if(deleteWord.value.trim()!=='DELETE'){deleteStatus.textContent='Type DELETE exactly to continue.';return;}
+  if(!window.confirm('FINAL CONFIRMATION: Permanently delete your Loop account, card, connections and uploaded files? This cannot be undone.'))return;
+  deleteConfirm.disabled=true;deleteRequest.disabled=true;deleteStatus.textContent='Deleting your account and files… Please keep this page open.';
+  try{
+   await callDeletionService({action:'confirm',code,confirmation:'DELETE'});
+   try{await db.auth.signOut({scope:'local'});}catch{}
+   me=null;profile=null;view='overview';
+   history.replaceState(null,'',siteRoot()+'#/');
+   landing();announce('Your Loop account has been permanently deleted.');
+  }catch(error){deleteStatus.textContent='Account deletion not completed: '+error.message+' If files were partially removed, contact support.';deleteConfirm.disabled=false;deleteRequest.disabled=false;}
+ };
  if(me?.user_metadata?.loop_passkey_offer)msg.textContent='Your account is ready! You can set up your passkey now, or do it later.';
 }
 
