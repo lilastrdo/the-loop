@@ -540,3 +540,36 @@ html[data-mode="dark"] .hero h1 .slogan-accent {
 .connection-badge[hidden] {display:none !important;}
 @media(max-width:620px){.connections-toolbar .btn{flex:1 1 auto!important;min-width:calc(50% - 8px)}#connection-selection-count{margin-left:0;width:100%;text-align:right;}}
 
+/* Larger icebreaker answer box */
+.loop-icebreaker #icebreaker-answer {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 150px;
+  padding: 12px 14px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+/* Mobile card order */
+@media (max-width: 740px) {
+  .public-wrap.public-three-column {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .public-wrap.public-three-column > .profile-view {
+    order: 1;
+  }
+
+  .public-wrap.public-three-column > .form-section {
+    order: 2;
+  }
+
+  .public-wrap.public-three-column > .panel:not(.form-section) {
+    order: 3;
+  }
+}
+
