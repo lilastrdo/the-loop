@@ -20,7 +20,7 @@ const safeUrl=v=>{try{const u=new URL(v);return ['https:','http:'].includes(u.pr
 const photoUrl=v=>safeUrl(v);
 function announce(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('on'),3500)}
 const route=()=>{const hash=location.hash.slice(1)||'/';const [path,arg]=hash.split('?');return {path,arg};};
-const siteRoot=()=> (cfg.siteUrl||location.origin+location.pathname).split('#')[0].split('?')[0].replace(/\/*$/,'/');
+const siteRoot=()=> (location.origin+location.pathname).split('#')[0].split('?')[0].replace(/\/*$/,'/'); // Always use the current website origin, not an old GitHub Pages config URL.
 const resetUrl=()=>siteRoot()+'?page=reset';
 const onResetUrl=()=>new URLSearchParams(location.search).get('page')==='reset';
 // Preserve URL errors before Supabase cleans authentication fragments.
@@ -510,7 +510,22 @@ async function resetPage(){
   if(!configured){render('<main class="center-wrap"><div class="panel">Password reset is unavailable until Supabase is configured.</div></main>');return}
   if(initialRecoveryError){render(`<main class="center-wrap"><div class="panel auth"><h2>Reset link unavailable</h2><p class="muted">${esc(initialRecoveryError)}. Please request a new password-reset email.</p><a class="btn secondary" href="${esc(siteRoot()+'#/auth')}">Return to Log in</a></div></main>`);return}
   if(!recoveryMode||!me){render('<main class="center-wrap"><div class="panel auth"><h2>Reset link could not be verified</h2><p class="muted">Open the newest password-reset email once. If this page still appears, request another link from Log in.</p><a class="btn secondary" href="'+esc(siteRoot()+'#/auth')+'">Return to Log in</a></div></main>');return}
-  render('<main class="center-wrap"><form id="reset-form" class="panel auth form"><h2>Set a new password</h2><p class="muted">Enter a new password for your Loop account.</p><div class="field"><label for="reset-new">New password</label><input id="reset-new" type="password" name="password" minlength="8" autocomplete="new-password" required></div><div class="field"><label for="reset-confirm">Confirm new password</label><input id="reset-confirm" type="password" name="confirm" minlength="8" autocomplete="new-password" required></div><button class="btn block" type="submit">Update password</button><div id="reset-message" aria-live="polite"></div></form></main>');
+  render('<main class="center-wrap"><form id="reset-form" class="panel auth form"><h2>Set a new password</h2><p class="muted">Enter a new password for your Loop account.</p><div class="field"><label for="reset-new">New password</label><div style="position:relative"><input id="reset-new" type="password" name="password" minlength="8" autocomplete="new-password" required style="width:100%;padding-right:52px"><button type="button" id="show-reset-new" aria-label="Show new password" aria-pressed="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:inherit;cursor:pointer;padding:8px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div><div class="field"><label for="reset-confirm">Confirm new password</label><div style="position:relative"><input id="reset-confirm" type="password" name="confirm" minlength="8" autocomplete="new-password" required style="width:100%;padding-right:52px"><button type="button" id="show-reset-confirm" aria-label="Show confirm new password" aria-pressed="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:inherit;cursor:pointer;padding:8px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div><button class="btn block" type="submit">Update password</button><div id="reset-message" aria-live="polite"></div></form></main>');
+  // Independent show/hide controls for both password fields.
+  for(const inputId of ['reset-new','reset-confirm']){
+    const input=document.getElementById(inputId);
+    const button=document.getElementById('show-'+inputId);
+    button.onclick=()=>{
+      const visible=input.type==='password';
+      input.type=visible?'text':'password';
+      const paths=visible
+        ? '<path d="M3 3l18 18M10.6 5.1A11 11 0 0 1 12 5c6.5 0 10 7 10 7a15 15 0 0 1-4 4.8M6.6 6.6C3.6 8.6 2 12 2 12s3.5 7 10 7a10.8 10.8 0 0 0 4.2-.9"/>'
+        : '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>';
+      button.innerHTML='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+paths+'</svg>';
+      button.setAttribute('aria-label',(visible?'Hide ':'Show ')+(inputId==='reset-new'?'new password':'confirmation password'));
+      button.setAttribute('aria-pressed',String(visible));
+    };
+  }
   document.getElementById('reset-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),password=String(f.get('password')||''),confirm=String(f.get('confirm')||''),box=document.getElementById('reset-message'),btn=e.target.querySelector('button[type=submit]');if(password!==confirm){box.innerHTML='<div class="error">Passwords do not match.</div>';return}btn.disabled=true;box.textContent='Updating…';try{const {error}=await db.auth.updateUser({password});if(error)throw error;recoveryMode=false;box.innerHTML='<div class="success">Password updated. You can now log in with your new password.</div>';await db.auth.signOut();history.replaceState(null,'',siteRoot()+'#/auth');me=null;authPage(false)}catch(err){box.innerHTML=`<div class="error">${esc(err.message)}</div>`;btn.disabled=false}};
 }
 function confirmationPage(){
