@@ -28,6 +28,31 @@ const onResetUrl=()=>new URLSearchParams(location.search).get('page')==='reset';
 const initialRecoveryError=(()=>{const p=new URLSearchParams(location.hash.slice(1));return p.get('error_description')||p.get('error_code')||''})();
 const onConfirmedUrl=()=>new URLSearchParams(location.search).get('page')==='confirmed';
 const urlFor=s=>siteRoot()+'#/u/'+encodeURIComponent(s);
+
+// A personal QR shortcut contains only a public card username, never a login token.
+// Its URL remains useful when the Supabase login session expires.
+const MY_QR_ROUTE='/my-qr';
+const MY_QR_PREFIX='/my-qr/u/';
+const MY_QR_LINK=username=>siteRoot()+'#'+MY_QR_PREFIX+encodeURIComponent(username);
+const MY_QR_LAST_KEY='loop-qr-shortcut-username';
+const defaultDocumentTitle=document.title;
+function updateQuickQrInstallMetadata(enabled){
+  document.title=enabled?'My QR — the Loop':defaultDocumentTitle;
+  // Deliberately don't attach a static PWA manifest here: its fixed start_url
+  // would discard the username in a per-person home-screen shortcut.
+  document.querySelector('link[data-loop-quick-qr-manifest]')?.remove();
+  let icon=document.querySelector('link[data-loop-quick-qr-icon]');
+  if(enabled){
+    if(!icon){icon=document.createElement('link');icon.rel='apple-touch-icon';icon.dataset.loopQuickQrIcon='1';document.head.appendChild(icon);}
+    icon.href=siteRoot()+'loop-qr-icon-192.png';
+  }else icon?.remove();
+}
+function afterQuickQrLogin(){
+  let next='';
+  try{if(sessionStorage.getItem('loop-return-to-my-qr')==='1'){next=MY_QR_ROUTE;sessionStorage.removeItem('loop-return-to-my-qr');}}catch{}
+  return next||'/dashboard';
+}
+
 const avatar=p=>p?.username==='demo'?`<img class="avatar" alt="Fictional professional headshot of John Smith" src="demo-businessman.webp">`:p?.photo_url&&photoUrl(p.photo_url)?`<img class="avatar" alt="Profile portrait" src="${esc(photoUrl(p.photo_url))}">`:`<div class="avatar" aria-hidden="true">${esc((p?.full_name||'LC').trim().slice(0,2).toUpperCase())}</div>`;
 function nav(){return `<header class="header"><div class="shell nav"><a class="brand" href="#/"><img src="loop-logo.png" alt="the Loop logo"  class="brand-logo"> the Loop</a><div class="nav-links"><a class="btn ghost small" href="#/demo">Demo</a>${me?'<a class="btn secondary small" href="#/dashboard">My Account</a><span class="connection-badge nav-unread" data-unread-count hidden></span><button class="btn small" id="logout">Log out</button>':'<a class="btn secondary small" href="#/auth">Log in</a><a class="btn small" href="#/auth?signup">Get started</a>'}<button type="button" id="color-mode-toggle" class="btn secondary small mode-toggle" aria-pressed="${colorMode==='dark'}" aria-label="Toggle dark mode">${colorMode==='dark'?'☀ Light mode':'☾ Dark mode'}</button></div><div class="mobile-actions"><button type="button" id="mobile-theme-toggle" class="mobile-icon" aria-label="${colorMode==='dark'?'Switch to light mode':'Switch to dark mode'}" title="Change appearance">${colorMode==='dark'?'☀':'☾'}</button><button type="button" id="mobile-menu-toggle" class="mobile-icon" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-menu">☰</button></div></div><nav class="mobile-menu" id="mobile-menu" aria-label="Mobile navigation" hidden>${me?'<a href="#/dashboard">My Account</a><a href="#/dashboard" data-mobile-view="edit">Edit Card</a><a href="#/dashboard" data-mobile-view="share">Share My Digital Card</a><a href="#/dashboard" data-mobile-view="signature">Email Signature</a><a href="#/dashboard" data-mobile-view="contacts">Connections <span class="connection-badge" data-unread-count hidden></span></a><a href="#/dashboard" data-mobile-view="settings">Settings</a>':'<a href="#/auth">Log in</a><a href="#/auth?signup">Get started</a>'}<a href="#/demo">Demo</a>${me?'<button type="button" id="mobile-logout">Log out</button>':''}</nav></header>`}
 function render(content){document.getElementById('loop-passkey-onboarding')?.remove();root.innerHTML=nav()+content+`<footer class="footer"><div class="shell">© ${new Date().getFullYear()} the Loop · Meet. Connect. Stay in the Loop.</div></footer>`;
@@ -144,6 +169,101 @@ function drawQR(p) {
   }
 }
 
+async function myQuickQrPage(username=''){
+  if(!configured){
+    render('<main class="center-wrap"><div class="panel auth"><h2>My QR</h2><p class="muted">The Loop is temporarily unavailable.</p></div></main>');
+    return;
+  }
+  // Existing generic shortcuts can upgrade to the owner's personalized URL.
+  // This fallback never needs a stored password or authentication token.
+  if(!username){
+    if(me){
+      render('<div class="loader">Opening your Loop QR…</div>');
+      try{
+        const owner=await getMyProfile();
+        if(owner.deactivated_at){profile=owner;showReactivationPage();return;}
+        if(!owner.published){
+          render('<main class="center-wrap"><div class="panel auth"><h2>Your card is private</h2><p class="muted">Publish your card in Edit Card before adding a QR shortcut.</p><a href="#/dashboard" class="btn">My Account</a></div></main>');
+          return;
+        }
+        try{localStorage.setItem(MY_QR_LAST_KEY,owner.username);}catch{}
+        location.hash=MY_QR_PREFIX+encodeURIComponent(owner.username);
+      }catch(error){
+        render(`<main class="center-wrap"><div class="panel auth"><h2>Unable to load your card</h2><p class="error">${esc(error.message)}</p><a class="btn" href="#/dashboard">My Account</a></div></main>`);
+      }
+      return;
+    }
+    let saved='';
+    try{saved=localStorage.getItem(MY_QR_LAST_KEY)||'';}catch{}
+    if(saved && /^[A-Za-z0-9_.-]{1,60}$/.test(saved)){
+      location.hash=MY_QR_PREFIX+encodeURIComponent(saved);
+      return;
+    }
+    try{sessionStorage.setItem('loop-return-to-my-qr','1');}catch{}
+    render(`<main class="center-wrap"><div class="panel auth" style="text-align:center"><img src="loop-logo.png" alt="the Loop" style="width:68px;height:68px;object-fit:contain;margin:0 auto 12px"><h1 style="font-size:27px;margin-bottom:12px">Set up your Loop QR</h1><p class="muted" style="margin-bottom:20px;line-height:1.7">Sign in once to connect this older shortcut to your public digital card. New personalized shortcuts won't require a login.</p><a class="btn block" href="#/auth">Sign in to set up →</a></div></main>`);
+    return;
+  }
+  if(!/^[A-Za-z0-9_.-]{1,60}$/.test(username)){
+    render('<main class="center-wrap"><div class="panel auth"><h2>Invalid QR shortcut</h2><p class="muted">This shortcut URL is not valid.</p><a class="btn" href="#/">Go home</a></div></main>');
+    return;
+  }
+  render('<div class="loader">Loading your Loop QR…</div>');
+  // Public-only view intentionally filters unpublished or deactivated accounts.
+  // Never query the private profiles table for a signed-out shortcut.
+  const {data:p,error}=await db.from('public_cards')
+    .select('username, full_name, title, company')
+    .eq('username',username).maybeSingle();
+  if(error || !p){
+    render(`<main class="center-wrap"><div class="panel auth" style="text-align:center"><h1 style="font-size:27px;margin-bottom:12px">Card unavailable</h1><p class="muted" style="line-height:1.7;margin-bottom:20px">This Loop card may be private, deactivated, deleted, or its username may have changed.</p><a class="btn secondary" href="#/auth">Sign in to manage your card</a></div></main>`);
+    return;
+  }
+  const homeUrl=MY_QR_LINK(p.username);
+  render(`<main class="shell" style="max-width:670px;padding-top:26px;padding-bottom:56px">
+    <section class="panel" style="background:#223449;color:#fff;text-align:center;padding:clamp(20px,5vw,34px);border:1px solid #3f526c;box-shadow:0 16px 42px #0002">
+      <p style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#d8e3f5;margin-bottom:12px">My Loop QR</p>
+      <h1 style="font-size:clamp(25px,5vw,34px);line-height:1.25;margin-bottom:8px;color:#fff">${esc(p.full_name||'My Digital Card')}</h1>
+      <p style="font-size:14px;color:#d7e1ed;margin:0 auto 22px;max-width:440px;line-height:1.5">${esc([p.title,p.company].filter(Boolean).join(' · '))}</p>
+      <div style="display:grid;place-items:center;background:#fff;border-radius:20px;padding:18px;max-width:385px;margin:0 auto 17px">
+        <canvas id="qr-canvas" aria-label="QR code linking to my live Loop digital card"></canvas>
+      </div>
+      <p style="font-size:14px;color:#e8eff9;font-weight:600">Scan to view my digital business card</p>
+      <p style="font-size:12px;color:#b4c6dc;overflow-wrap:anywhere;margin-top:10px">${esc(urlFor(p.username))}</p>
+    </section>
+    <section class="panel" style="margin-top:16px;padding:20px">
+      <div class="actions" style="margin-top:0;gap:9px">
+        <button type="button" id="my-qr-share" class="btn">↗ Share Card</button>
+        <button type="button" id="my-qr-copy" class="btn secondary">Copy Card Link</button>
+        <button type="button" id="my-qr-download" class="btn secondary">↓ Download QR</button>
+      </div>
+    </section>
+    <section class="panel" style="margin-top:16px;padding:20px">
+      <h2 style="font-size:19px;margin-bottom:10px">Add My QR to Home Screen</h2>
+      <p class="muted" style="font-size:14px;line-height:1.6">This personal shortcut will open your public QR code without logging in. Keep this exact page open when adding it to your Home Screen.</p>
+      <button type="button" class="btn secondary" id="my-qr-install" style="margin-top:14px">⌂ Home Screen Instructions</button>
+      <div id="my-qr-install-guide" class="hint" style="margin-top:14px;display:none;padding:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;line-height:1.8">
+        <strong>Android Chrome:</strong> Open this page in Chrome, tap ⋮ → <strong>Add to Home screen</strong> → <strong>Create shortcut</strong> (if offered), then Add.<br>
+        <strong>iPhone Safari:</strong> Tap Share → <strong>Add to Home Screen</strong> → Add.<br>
+        Your shortcut must keep the personalized address below. If your browser installs the main Loop app instead, copy this direct address and create a bookmark shortcut to it.
+      </div>
+      <p class="hint" style="margin-top:13px">Personal shortcut address: <span id="my-qr-shortcut-url" style="word-break:break-all">${esc(homeUrl)}</span> <button class="btn ghost small" type="button" id="my-qr-copy-shortcut">Copy</button></p>
+    </section>
+    <div style="text-align:center;margin-top:22px"><a class="btn ghost" href="#/dashboard">← My Account</a></div>
+  </main>`);
+  drawQR(p);
+  const canvas=document.getElementById('qr-canvas');
+  if(canvas){canvas.style.width='min(76vw,330px)';canvas.style.maxWidth='100%';canvas.style.height='auto';}
+  document.getElementById('my-qr-share').onclick=()=>share(p);
+  document.getElementById('my-qr-copy').onclick=()=>copy(urlFor(p.username));
+  document.getElementById('my-qr-copy-shortcut').onclick=()=>copy(homeUrl);
+  document.getElementById('my-qr-download').onclick=()=>{
+    const c=document.getElementById('qr-canvas');if(!c?.width){announce('QR code is not ready.');return;}
+    const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='my-loop-qr.png';a.click();
+  };
+  document.getElementById('my-qr-install').onclick=()=>{
+    document.getElementById('my-qr-install-guide').style.display='block';
+  };
+}
+
 function qrBlock(p){return `<div class="qrcard"><canvas id="qr-canvas" aria-label="QR code for public card"></canvas><p class="hint" style="margin-top:12px;text-align:center">Scan with your phone camera</p></div><div class="public-url" style="margin:12px 0">${esc(urlFor(p.username))}</div><button class="btn secondary block" data-action="copy-link">Copy card link</button>`}
 function demoPage(){
   const demoUrl=siteRoot()+'#/demo';
@@ -191,7 +311,7 @@ function loopTogglePassword(inputId,buttonId){
     button.innerHTML=`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${visible?'<path d="M3 3l18 18M10.6 5.1A11 11 0 0 1 12 5c6.5 0 10 7 10 7a15 15 0 0 1-4 4.8M6.6 6.6C3.6 8.6 2 12 2 12s3.5 7 10 7a10.8 10.8 0 0 0 4.2-.9"/>':'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>'}</svg>`;
   });
 }
-async function authPage(signup=false){if(me){location.hash='/dashboard';return}render(`<main class="center-wrap"><div class="panel auth"><div class="brand"><img src="loop-logo.png" alt="the Loop logo" class="brand-logo">the Loop</div><h2>Welcome ${signup?'to the Loop':'back'}</h2><p class="muted">${signup?'Create an account to design and share your digital card.':'Log in to manage your digital card and contacts.'}</p>${!configured?'<div class="info-strip" style="margin-top:18px">Demo mode: add your Supabase URL and publishable key in config.js to activate accounts.</div>':''}<div class="tabs"><button class="tab ${signup?'':'active'}" data-tab="login">Log in</button><button class="tab ${signup?'active':''}" data-tab="signup">Sign up</button></div><form class="form" id="auth-form">${signup?'<div class="field"><label>Full name</label><input name="name" autocomplete="name" required maxlength="100"></div>':''}<div class="field"><label>Email</label><input name="email" type="email" autocomplete="email" required></div>${signup?'<div class="field"><label for="signup-email-confirm">Confirm Email</label><input id="signup-email-confirm" name="confirm_email" type="email" autocomplete="off" required></div>':''}<div class="field"><label>Password</label><div style="position:relative"><input id="auth-password" name="password" type="password" minlength="8" autocomplete="${signup?'new-password':'current-password'}" required style="width:100%;padding-right:52px"><button type="button" id="toggle-auth-password" aria-label="Show password" aria-pressed="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:inherit;cursor:pointer;padding:8px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>${signup?'<div id="signup-password-feedback" aria-live="polite"></div><div class="field"><label for="signup-password-confirm">Confirm Password</label><div style="position:relative"><input id="signup-password-confirm" name="confirm_password" type="password" minlength="8" autocomplete="new-password" required style="width:100%;padding-right:52px"><button type="button" id="toggle-signup-password-confirm" aria-label="Show password" aria-pressed="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:inherit;cursor:pointer;padding:8px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>':''}<button class="btn block" type="submit" ${configured?'':'disabled'}>${signup?'Create account':'Log in'}</button></form>${!signup?'<div style="margin:14px 0;text-align:center" class="hint">or</div><button type="button" class="btn secondary block" id="passkey-sign-in">Sign in with a passkey</button><button id="reset" class="btn ghost block" style="margin-top:10px">Forgot password?</button>':''}<div id="auth-message" aria-live="polite"></div></div></main>`);const togglePassword = document.getElementById('toggle-auth-password');
+async function authPage(signup=false){if(me){location.hash=afterQuickQrLogin();return}render(`<main class="center-wrap"><div class="panel auth"><div class="brand"><img src="loop-logo.png" alt="the Loop logo" class="brand-logo">the Loop</div><h2>Welcome ${signup?'to the Loop':'back'}</h2><p class="muted">${signup?'Create an account to design and share your digital card.':'Log in to manage your digital card and contacts.'}</p>${!configured?'<div class="info-strip" style="margin-top:18px">Demo mode: add your Supabase URL and publishable key in config.js to activate accounts.</div>':''}<div class="tabs"><button class="tab ${signup?'':'active'}" data-tab="login">Log in</button><button class="tab ${signup?'active':''}" data-tab="signup">Sign up</button></div><form class="form" id="auth-form">${signup?'<div class="field"><label>Full name</label><input name="name" autocomplete="name" required maxlength="100"></div>':''}<div class="field"><label>Email</label><input name="email" type="email" autocomplete="email" required></div>${signup?'<div class="field"><label for="signup-email-confirm">Confirm Email</label><input id="signup-email-confirm" name="confirm_email" type="email" autocomplete="off" required></div>':''}<div class="field"><label>Password</label><div style="position:relative"><input id="auth-password" name="password" type="password" minlength="8" autocomplete="${signup?'new-password':'current-password'}" required style="width:100%;padding-right:52px"><button type="button" id="toggle-auth-password" aria-label="Show password" aria-pressed="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:inherit;cursor:pointer;padding:8px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>${signup?'<div id="signup-password-feedback" aria-live="polite"></div><div class="field"><label for="signup-password-confirm">Confirm Password</label><div style="position:relative"><input id="signup-password-confirm" name="confirm_password" type="password" minlength="8" autocomplete="new-password" required style="width:100%;padding-right:52px"><button type="button" id="toggle-signup-password-confirm" aria-label="Show password" aria-pressed="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:inherit;cursor:pointer;padding:8px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>':''}<button class="btn block" type="submit" ${configured?'':'disabled'}>${signup?'Create account':'Log in'}</button></form>${!signup?'<div style="margin:14px 0;text-align:center" class="hint">or</div><button type="button" class="btn secondary block" id="passkey-sign-in">Sign in with a passkey</button><button id="reset" class="btn ghost block" style="margin-top:10px">Forgot password?</button>':''}<div id="auth-message" aria-live="polite"></div></div></main>`);const togglePassword = document.getElementById('toggle-auth-password');
 const passwordInput = document.getElementById('auth-password');
 
 if (togglePassword && passwordInput) {
@@ -207,7 +327,7 @@ if (togglePassword && passwordInput) {
     );
     togglePassword.setAttribute('aria-pressed', String(isHidden));
   };
-}if(signup){loopTogglePassword('signup-password-confirm','toggle-signup-password-confirm');loopPasswordFeedback('auth-password','signup-password-confirm','signup-password-feedback');}const passkeySignIn=document.getElementById('passkey-sign-in');if(passkeySignIn)passkeySignIn.onclick=async()=>{const btn=document.getElementById('passkey-sign-in'),status=document.getElementById('auth-message');btn.disabled=true;status.textContent='Waiting for your passkey…';try{if(!window.PublicKeyCredential||typeof db?.auth?.signInWithPasskey!=='function')throw Error('Passkey sign-in is unavailable on this browser.');const {data,error}=await db.auth.signInWithPasskey();if(error)throw error;me=data.user;location.hash='/dashboard';}catch(e){status.textContent='Passkey sign-in failed: '+e.message;}finally{if(btn.isConnected)btn.disabled=false;}};document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>authPage(b.dataset.tab==='signup'));const r=document.getElementById('reset');if(r)r.onclick=async()=>{const email=document.querySelector('[name=email]').value.trim();if(!email){announce('Enter your email first');return}const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:resetUrl()});announce(error?error.message:'Check your email for a reset link')};document.getElementById('auth-form').onsubmit=async(e)=>{e.preventDefault();const fd=new FormData(e.target),email=String(fd.get('email')||'').trim(),password=String(fd.get('password')||''),box=document.getElementById('auth-message');if(signup){if(email.toLowerCase()!==String(fd.get('confirm_email')||'').trim().toLowerCase()){box.innerHTML='<div class="error">Email addresses do not match.</div>';return}if(!loopPasswordValid(password)){box.innerHTML='<div class="error">Password must be at least 8 characters and contain uppercase, lowercase, and a number.</div>';return}if(password!==fd.get('confirm_password')){box.innerHTML='<div class="error">Passwords do not match.</div>';return}}box.textContent='Working…';let result=signup?await db.auth.signUp({email,password,options:{data:{full_name:fd.get('name'),loop_passkey_offer:true},emailRedirectTo:siteRoot()+'?page=confirmed'}}):await db.auth.signInWithPassword({email,password});if(result.error){
+}if(signup){loopTogglePassword('signup-password-confirm','toggle-signup-password-confirm');loopPasswordFeedback('auth-password','signup-password-confirm','signup-password-feedback');}const passkeySignIn=document.getElementById('passkey-sign-in');if(passkeySignIn)passkeySignIn.onclick=async()=>{const btn=document.getElementById('passkey-sign-in'),status=document.getElementById('auth-message');btn.disabled=true;status.textContent='Waiting for your passkey…';try{if(!window.PublicKeyCredential||typeof db?.auth?.signInWithPasskey!=='function')throw Error('Passkey sign-in is unavailable on this browser.');const {data,error}=await db.auth.signInWithPasskey();if(error)throw error;me=data.user;location.hash=afterQuickQrLogin();}catch(e){status.textContent='Passkey sign-in failed: '+e.message;}finally{if(btn.isConnected)btn.disabled=false;}};document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>authPage(b.dataset.tab==='signup'));const r=document.getElementById('reset');if(r)r.onclick=async()=>{const email=document.querySelector('[name=email]').value.trim();if(!email){announce('Enter your email first');return}const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:resetUrl()});announce(error?error.message:'Check your email for a reset link')};document.getElementById('auth-form').onsubmit=async(e)=>{e.preventDefault();const fd=new FormData(e.target),email=String(fd.get('email')||'').trim(),password=String(fd.get('password')||''),box=document.getElementById('auth-message');if(signup){if(email.toLowerCase()!==String(fd.get('confirm_email')||'').trim().toLowerCase()){box.innerHTML='<div class="error">Email addresses do not match.</div>';return}if(!loopPasswordValid(password)){box.innerHTML='<div class="error">Password must be at least 8 characters and contain uppercase, lowercase, and a number.</div>';return}if(password!==fd.get('confirm_password')){box.innerHTML='<div class="error">Passwords do not match.</div>';return}}box.textContent='Working…';let result=signup?await db.auth.signUp({email,password,options:{data:{full_name:fd.get('name'),loop_passkey_offer:true},emailRedirectTo:siteRoot()+'?page=confirmed'}}):await db.auth.signInWithPassword({email,password});if(result.error){
   const duplicateEmail=signup&&(result.error.code==='user_already_exists'||/user already registered|email already (registered|exists|in use)/i.test(result.error.message||''));
   if(duplicateEmail){
     box.innerHTML='<div class="error" role="alert"><strong>Email already registered</strong><p style="margin:8px 0 12px">This email already has a Loop account. Log in or reset your password.</p><div class="actions"><a class="btn" href="#/auth">Log In</a><button type="button" class="btn secondary" id="signup-existing-reset">Reset Password</button></div><p class="hint" id="signup-existing-reset-status" role="status" style="margin-top:10px"></p></div>';
@@ -220,7 +340,7 @@ if (togglePassword && passwordInput) {
     };
   }else box.innerHTML=`<div class="error">${esc(result.error.message)}</div>`;
   return;
-}if(signup&&!result.data.session){box.innerHTML='<div class="success" role="status"><strong>Check your email</strong><p style="margin:8px 0">We sent a confirmation link if this email address is eligible for registration. After confirming, log in to the Loop.</p></div>';return}me=result.data.user;location.hash='/dashboard'}}
+}if(signup&&!result.data.session){box.innerHTML='<div class="success" role="status"><strong>Check your email</strong><p style="margin:8px 0">We sent a confirmation link if this email address is eligible for registration. After confirming, log in to the Loop.</p></div>';return}me=result.data.user;location.hash=afterQuickQrLogin()}}
 async function getMyProfile(){let {data,error}=await db.from('profiles').select('*').eq('id',me.id).maybeSingle();if(error)throw error;if(data)return data;const name=me.user_metadata?.full_name||'',fallback=('user'+me.id.replace(/-/g,'').slice(0,9));const {data:newData,error:insertError}=await db.from('profiles').insert({id:me.id,username:fallback,full_name:name,email:me.email||''}).select().single();if(insertError)throw insertError;return newData}
 const THEMES=['violet','ocean','emerald','sunset','rose','midnight','executive-navy','graphite','slate','forest','champagne','burgundy','ivory','steel-blue','espresso','teal-professional'];
 const fields=[['full_name','Full name','text'],['username','Unique card username','text'],['title','Job title / credentials','text'],['company','Company / organization','text'],['bio','Bio','textarea'],['email','Public contact email','email'],['phone','Public phone','tel'],['website','Website (https://...)','url'],['linkedin','LinkedIn (https://...)','url']];
@@ -387,7 +507,7 @@ function showPasskeyOnboarding(){
  now.focus();
 }
 
-function showDashboard(){render(`<main class="shell layout"><aside class="side">${[['overview','⌂ Overview'],['edit','✎ Edit card'],['share','▦ Share My Digital Card'],['signature','✉ Email Signature'],['contacts','⇄ Connections'],['settings','⚙ Settings']].map(([v,label])=>`<button data-view="${v}" class="${view===v?'active':''}">${label}${v==='contacts'?'<span class="connection-badge" data-unread-count hidden></span>':''}</button>`).join('')}</aside><section><div class="top-row"><div><h1>${({overview:'My Account',edit:'Edit your card',share:'Share Your Digital Business Card',signature:'Email Signature Generator',contacts:'Your connections',settings:'Settings'})[view]}</h1><p>Welcome${profile.full_name?', '+esc(profile.full_name.split(' ')[0]):''}. Your network starts here.</p></div>${profile.published?`<a href="#/u/${encodeURIComponent(profile.username)}" class="btn secondary small">View public card ↗</a>`:'<span class="hint">Card is private</span>'}</div><div id="dash-body"></div></section></main>`);document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;showDashboard()});const el=document.getElementById('dash-body');if(view==='overview'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:20px;margin-bottom:10px">Your digital identity</h2><p class="muted" style="margin-bottom:20px">Keep your card current and share it anywhere.</p>${card(profile)}</div><div class="panel"><h3 style="margin-bottom:16px">Quick share</h3>${qrBlock(profile)}<p class="hint" style="margin-top:16px">${profile.published?'Your card is public.':'Publish your card in Edit card before sharing.'}</p></div></div>`;wireCard(profile);drawQR(profile);}else if(view==='edit'){el.innerHTML=`<div class="panel"><div class="info-strip" style="margin-bottom:20px">Only publish information you're comfortable sharing publicly. Changes to your username will change your card link.</div>${profileForm(profile)}</div>`;document.getElementById('profile-form').onsubmit=saveProfile;wireProfileEditor()}else if(view==='share'){el.innerHTML=`<div class="dashboard-grid" style="grid-template-columns:minmax(0,1fr)"><div class="panel"><h2 style="font-size:19px">Your QR code</h2><p class="hint" style="margin:8px 0 20px">Let others scan your QR code to instantly view and save your contact information.</p>${qrBlock(profile)}<div class="actions"><button class="btn" data-action="native-share">↗ Share card</button><button class="btn secondary" data-action="share-by-email">✉ Email card</button><button class="btn secondary" id="share-qr-image">↗ Share QR image</button><button class="btn secondary" id="download-qr">↓ Download QR</button></div>${!profile.published?'<p class="error">Your card is currently private. Publish it in Edit card before sharing.</p>':''}</div></div><div class="panel" style="margin-top:18px"><h3 style="margin-bottom:8px">Add your card to Google Wallet</h3><p class="hint" style="margin-bottom:14px">Keep your Loop card handy on your phone. Your Wallet QR code will open your live digital card when someone scans it.</p><button type="button" class="btn secondary" id="add-to-google-wallet" ${profile.published?'':'disabled'}>▣ Add to Google Wallet</button><p id="google-wallet-status" role="status" aria-live="polite" class="hint" style="margin-top:10px"></p><p class="hint" style="margin-top:8px">Testing: Google Wallet is in demo mode, so only approved test accounts can save a pass.</p></div>`;wireCard(profile);
+function showDashboard(){render(`<main class="shell layout"><aside class="side">${[['overview','⌂ Overview'],['edit','✎ Edit card'],['share','▦ Share My Digital Card'],['signature','✉ Email Signature'],['contacts','⇄ Connections'],['settings','⚙ Settings']].map(([v,label])=>`<button data-view="${v}" class="${view===v?'active':''}">${label}${v==='contacts'?'<span class="connection-badge" data-unread-count hidden></span>':''}</button>`).join('')}</aside><section><div class="top-row"><div><h1>${({overview:'My Account',edit:'Edit your card',share:'Share Your Digital Business Card',signature:'Email Signature Generator',contacts:'Your connections',settings:'Settings'})[view]}</h1><p>Welcome${profile.full_name?', '+esc(profile.full_name.split(' ')[0]):''}. Your network starts here.</p></div>${profile.published?`<a href="#/u/${encodeURIComponent(profile.username)}" class="btn secondary small">View public card ↗</a>`:'<span class="hint">Card is private</span>'}</div><div id="dash-body"></div></section></main>`);document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;showDashboard()});const el=document.getElementById('dash-body');if(view==='overview'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:20px;margin-bottom:10px">Your digital identity</h2><p class="muted" style="margin-bottom:20px">Keep your card current and share it anywhere.</p>${card(profile)}</div><div class="panel"><h3 style="margin-bottom:16px">Quick share</h3>${qrBlock(profile)}<p class="hint" style="margin-top:16px">${profile.published?'Your card is public.':'Publish your card in Edit card before sharing.'}</p></div></div>`;wireCard(profile);drawQR(profile);}else if(view==='edit'){el.innerHTML=`<div class="panel"><div class="info-strip" style="margin-bottom:20px">Only publish information you're comfortable sharing publicly. Changes to your username will change your card link.</div>${profileForm(profile)}</div>`;document.getElementById('profile-form').onsubmit=saveProfile;wireProfileEditor()}else if(view==='share'){el.innerHTML=`<div class="dashboard-grid" style="grid-template-columns:minmax(0,1fr)"><div class="panel"><h2 style="font-size:19px">Your QR code</h2><p class="hint" style="margin:8px 0 20px">Let others scan your QR code to instantly view and save your contact information.</p>${qrBlock(profile)}<div class="actions"><button class="btn" data-action="native-share">↗ Share card</button><button class="btn secondary" data-action="share-by-email">✉ Email card</button><button class="btn secondary" id="share-qr-image">↗ Share QR image</button><button class="btn secondary" id="download-qr">↓ Download QR</button></div>${!profile.published?'<p class="error">Your card is currently private. Publish it in Edit card before sharing.</p>':''}</div></div><div class="panel" style="margin-top:18px"><h3 style="margin-bottom:8px">Your QR on your phone's Home Screen</h3><p class="hint" style="margin-bottom:14px">Tap your Loop shortcut to show your personal QR code instantly. No app store or Wallet setup needed.</p><a class="btn secondary" href="#/my-qr/u/${encodeURIComponent(profile.username)}" id="open-personal-my-qr" style="max-width:100%">▦ Open My QR &amp; Set Up Shortcut →</a></div><div class="panel" style="margin-top:18px"><h3 style="margin-bottom:8px">Add your card to Google Wallet</h3><p class="hint" style="margin-bottom:14px">Keep your Loop card handy on your phone. Your Wallet QR code will open your live digital card when someone scans it.</p><button type="button" class="btn secondary" id="add-to-google-wallet" ${profile.published?'':'disabled'}>▣ Add to Google Wallet</button><p id="google-wallet-status" role="status" aria-live="polite" class="hint" style="margin-top:10px"></p><p class="hint" style="margin-top:8px">Testing: Google Wallet is in demo mode, so only approved test accounts can save a pass.</p></div>`;wireCard(profile);
 drawQR(profile);
 const shareQR = document.getElementById('qr-canvas');
 if (shareQR) {
@@ -395,6 +515,8 @@ if (shareQR) {
   shareQR.style.height = 'auto';
   shareQR.style.maxWidth = '320px';
 }
+const personalQrLink=document.getElementById('open-personal-my-qr');
+if(personalQrLink){personalQrLink.onclick=()=>{try{localStorage.setItem(MY_QR_LAST_KEY,profile.username);}catch{}};}
 const walletButton=document.getElementById('add-to-google-wallet');
 if(walletButton){walletButton.onclick=async()=>{
   const status=document.getElementById('google-wallet-status');
@@ -810,7 +932,7 @@ function goodbyePage(){
     }catch(error){message.textContent='Could not send feedback: '+error.message;submit.disabled=false;}
   };
 }
-async function navigate(){if(onResetUrl()){resetPage();return}if(onConfirmedUrl()){if(!finishConfirmation())confirmationPage();return}const {path,arg}=route();if(path==='/'){landing();return}if(path==='/demo'){demoPage();return}if(path==='/goodbye'){goodbyePage();return}if(path==='/auth'){authPage(arg==='signup');return}if(path==='/dashboard'){dashboard();return}if(path==='/reset'){resetPage();return}if(path.startsWith('/u/')){publicPage(decodeURIComponent(path.slice(3)));return}landing()}
+async function navigate(){if(onResetUrl()){resetPage();return}if(onConfirmedUrl()){if(!finishConfirmation())confirmationPage();return}const {path,arg}=route();updateQuickQrInstallMetadata(path===MY_QR_ROUTE||path.startsWith(MY_QR_PREFIX));if(path===MY_QR_ROUTE){myQuickQrPage();return}if(path.startsWith(MY_QR_PREFIX)){let username='';try{username=decodeURIComponent(path.slice(MY_QR_PREFIX.length));}catch{}myQuickQrPage(username||'!invalid!');return}if(path==='/'){landing();return}if(path==='/demo'){demoPage();return}if(path==='/goodbye'){goodbyePage();return}if(path==='/auth'){authPage(arg==='signup');return}if(path==='/dashboard'){dashboard();return}if(path==='/reset'){resetPage();return}if(path.startsWith('/u/')){publicPage(decodeURIComponent(path.slice(3)));return}landing()}
 if(db){
   db.auth.onAuthStateChange((event,session)=>{
     me=session?.user||null;
