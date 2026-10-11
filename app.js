@@ -37,7 +37,7 @@ const MY_QR_LINK=username=>siteRoot()+'#'+MY_QR_PREFIX+encodeURIComponent(userna
 const MY_QR_LAST_KEY='loop-qr-shortcut-username';
 const defaultDocumentTitle=document.title;
 function updateQuickQrInstallMetadata(enabled){
-  document.title=enabled?'My QR — the Loop':defaultDocumentTitle;
+  document.title=enabled?'my digital business card-the Loop':defaultDocumentTitle;
   // Deliberately don't attach a static PWA manifest here: its fixed start_url
   // would discard the username in a per-person home-screen shortcut.
   document.querySelector('link[data-loop-quick-qr-manifest]')?.remove();
@@ -239,11 +239,12 @@ async function myQuickQrPage(username=''){
     <section class="panel" style="margin-top:16px;padding:20px">
       <h2 style="font-size:19px;margin-bottom:10px">Add My QR to Home Screen</h2>
       <p class="muted" style="font-size:14px;line-height:1.6">This personal shortcut will open your public QR code without logging in. Keep this exact page open when adding it to your Home Screen.</p>
-      <button type="button" class="btn secondary" id="my-qr-install" style="margin-top:14px">⌂ Home Screen Instructions</button>
-      <div id="my-qr-install-guide" class="hint" style="margin-top:14px;display:none;padding:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;line-height:1.8">
-        <strong>Android Chrome:</strong> Open this page in Chrome, tap ⋮ → <strong>Add to Home screen</strong> → <strong>Create shortcut</strong> (if offered), then Add.<br>
-        <strong>iPhone Safari:</strong> Tap Share → <strong>Add to Home Screen</strong> → Add.<br>
-        Your shortcut must keep the personalized address below. If your browser installs the main Loop app instead, copy this direct address and create a bookmark shortcut to it.
+      <button type="button" class="btn block" id="my-qr-install" aria-controls="my-qr-install-guide" aria-expanded="false" style="margin-top:14px;max-width:420px">⌂ Add My QR to Home Screen →</button>
+      <p class="hint" style="margin-top:10px;font-size:12px">Opens a quick setup guide. Your browser will ask you to confirm the shortcut.</p>
+      <div id="my-qr-install-guide" class="hint" role="region" aria-label="Add QR shortcut instructions" style="margin-top:14px;display:none;padding:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;line-height:1.8">
+        <strong id="my-qr-guide-heading">Home screen shortcut</strong>
+        <div id="my-qr-guide-steps" style="margin-top:6px"></div>
+        <p style="margin-top:10px;font-size:12px">Keep this exact QR page open. Choose <strong>Create shortcut</strong> rather than installing the general Loop app when Chrome offers both.</p>
       </div>
       <p class="hint" style="margin-top:13px">Personal shortcut address: <span id="my-qr-shortcut-url" style="word-break:break-all">${esc(homeUrl)}</span> <button class="btn ghost small" type="button" id="my-qr-copy-shortcut">Copy</button></p>
     </section>
@@ -260,7 +261,28 @@ async function myQuickQrPage(username=''){
     const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='my-loop-qr.png';a.click();
   };
   document.getElementById('my-qr-install').onclick=()=>{
-    document.getElementById('my-qr-install-guide').style.display='block';
+    // The browser/OS must create the shortcut; websites cannot silently install one.
+    // We intentionally avoid the generic PWA install prompt because its fixed
+    // start_url could discard this user's personalized public QR address.
+    const guide=document.getElementById('my-qr-install-guide');
+    const heading=document.getElementById('my-qr-guide-heading');
+    const steps=document.getElementById('my-qr-guide-steps');
+    const ua=navigator.userAgent||'';
+    const isiOS=/iPhone|iPad|iPod/i.test(ua)||(/Macintosh/i.test(ua)&&navigator.maxTouchPoints>1);
+    const isAndroid=/Android/i.test(ua);
+    if(isAndroid){
+      heading.textContent='Android · Chrome';
+      steps.innerHTML='Tap Chrome’s <strong>⋮ menu</strong> (top right) → <strong>Install and create shortcut</strong> → <strong>Create shortcut</strong> → <strong>Add</strong>.';
+    }else if(isiOS){
+      heading.textContent='iPhone · Safari';
+      steps.innerHTML='Tap <strong>Share</strong> (square with up arrow) → <strong>Add to Home Screen</strong> → <strong>Add</strong>. If this option is missing, open this page in Safari.';
+    }else{
+      heading.textContent='Add to your phone’s Home Screen';
+      steps.innerHTML='<strong>Android Chrome:</strong> ⋮ → Install and create shortcut → Create shortcut → Add.<br><strong>iPhone Safari:</strong> Share → Add to Home Screen → Add.';
+    }
+    guide.style.display='block';
+    document.getElementById('my-qr-install').setAttribute('aria-expanded','true');
+    guide.scrollIntoView({behavior:'smooth',block:'nearest'});
   };
 }
 
@@ -507,7 +529,7 @@ function showPasskeyOnboarding(){
  now.focus();
 }
 
-function showDashboard(){render(`<main class="shell layout"><aside class="side">${[['overview','⌂ Overview'],['edit','✎ Edit card'],['share','▦ Share My Digital Card'],['signature','✉ Email Signature'],['contacts','⇄ Connections'],['settings','⚙ Settings']].map(([v,label])=>`<button data-view="${v}" class="${view===v?'active':''}">${label}${v==='contacts'?'<span class="connection-badge" data-unread-count hidden></span>':''}</button>`).join('')}</aside><section><div class="top-row"><div><h1>${({overview:'My Account',edit:'Edit your card',share:'Share Your Digital Business Card',signature:'Email Signature Generator',contacts:'Your connections',settings:'Settings'})[view]}</h1><p>Welcome${profile.full_name?', '+esc(profile.full_name.split(' ')[0]):''}. Your network starts here.</p></div>${profile.published?`<a href="#/u/${encodeURIComponent(profile.username)}" class="btn secondary small">View public card ↗</a>`:'<span class="hint">Card is private</span>'}</div><div id="dash-body"></div></section></main>`);document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;showDashboard()});const el=document.getElementById('dash-body');if(view==='overview'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:20px;margin-bottom:10px">Your digital identity</h2><p class="muted" style="margin-bottom:20px">Keep your card current and share it anywhere.</p>${card(profile)}</div><div class="panel"><h3 style="margin-bottom:16px">Quick share</h3>${qrBlock(profile)}<p class="hint" style="margin-top:16px">${profile.published?'Your card is public.':'Publish your card in Edit card before sharing.'}</p></div></div>`;wireCard(profile);drawQR(profile);}else if(view==='edit'){el.innerHTML=`<div class="panel"><div class="info-strip" style="margin-bottom:20px">Only publish information you're comfortable sharing publicly. Changes to your username will change your card link.</div>${profileForm(profile)}</div>`;document.getElementById('profile-form').onsubmit=saveProfile;wireProfileEditor()}else if(view==='share'){el.innerHTML=`<div class="dashboard-grid" style="grid-template-columns:minmax(0,1fr)"><div class="panel"><h2 style="font-size:19px">Your QR code</h2><p class="hint" style="margin:8px 0 20px">Let others scan your QR code to instantly view and save your contact information.</p>${qrBlock(profile)}<div class="actions"><button class="btn" data-action="native-share">↗ Share card</button><button class="btn secondary" data-action="share-by-email">✉ Email card</button><button class="btn secondary" id="share-qr-image">↗ Share QR image</button><button class="btn secondary" id="download-qr">↓ Download QR</button></div>${!profile.published?'<p class="error">Your card is currently private. Publish it in Edit card before sharing.</p>':''}</div></div><div class="panel" style="margin-top:18px"><h3 style="margin-bottom:8px">Your QR on your phone's Home Screen</h3><p class="hint" style="margin-bottom:14px">Tap your Loop shortcut to show your personal QR code instantly. No app store or Wallet setup needed.</p><a class="btn secondary" href="#/my-qr/u/${encodeURIComponent(profile.username)}" id="open-personal-my-qr" style="max-width:100%">▦ Open My QR &amp; Set Up Shortcut →</a></div><div class="panel" style="margin-top:18px"><h3 style="margin-bottom:8px">Add your card to Google Wallet</h3><p class="hint" style="margin-bottom:14px">Keep your Loop card handy on your phone. Your Wallet QR code will open your live digital card when someone scans it.</p><button type="button" class="btn secondary" id="add-to-google-wallet" ${profile.published?'':'disabled'}>▣ Add to Google Wallet</button><p id="google-wallet-status" role="status" aria-live="polite" class="hint" style="margin-top:10px"></p><p class="hint" style="margin-top:8px">Testing: Google Wallet is in demo mode, so only approved test accounts can save a pass.</p></div>`;wireCard(profile);
+function showDashboard(){render(`<main class="shell layout"><aside class="side">${[['overview','⌂ Overview'],['edit','✎ Edit card'],['share','▦ Share My Digital Card'],['signature','✉ Email Signature'],['contacts','⇄ Connections'],['settings','⚙ Settings']].map(([v,label])=>`<button data-view="${v}" class="${view===v?'active':''}">${label}${v==='contacts'?'<span class="connection-badge" data-unread-count hidden></span>':''}</button>`).join('')}</aside><section><div class="top-row"><div><h1>${({overview:'My Account',edit:'Edit your card',share:'Share Your Digital Business Card',signature:'Email Signature Generator',contacts:'Your connections',settings:'Settings'})[view]}</h1><p>Welcome${profile.full_name?', '+esc(profile.full_name.split(' ')[0]):''}. Your network starts here.</p></div>${profile.published?`<a href="#/u/${encodeURIComponent(profile.username)}" class="btn secondary small">View public card ↗</a>`:'<span class="hint">Card is private</span>'}</div><div id="dash-body"></div></section></main>`);document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;showDashboard()});const el=document.getElementById('dash-body');if(view==='overview'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:20px;margin-bottom:10px">Your digital identity</h2><p class="muted" style="margin-bottom:20px">Keep your card current and share it anywhere.</p>${card(profile)}</div><div class="panel"><h3 style="margin-bottom:16px">Quick share</h3>${qrBlock(profile)}<p class="hint" style="margin-top:16px">${profile.published?'Your card is public.':'Publish your card in Edit card before sharing.'}</p></div></div>`;wireCard(profile);drawQR(profile);}else if(view==='edit'){el.innerHTML=`<div class="panel"><div class="info-strip" style="margin-bottom:20px">Only publish information you're comfortable sharing publicly. Changes to your username will change your card link.</div>${profileForm(profile)}</div>`;document.getElementById('profile-form').onsubmit=saveProfile;wireProfileEditor()}else if(view==='share'){el.innerHTML=`<div class="dashboard-grid" style="grid-template-columns:minmax(0,1fr)"><div class="panel"><h2 style="font-size:19px">Your QR code</h2><p class="hint" style="margin:8px 0 20px">Let others scan your QR code to instantly view and save your contact information.</p>${qrBlock(profile)}<div class="actions"><button class="btn" data-action="native-share">↗ Share card</button><button class="btn secondary" data-action="share-by-email">✉ Email card</button><button class="btn secondary" id="share-qr-image">↗ Share QR image</button><button class="btn secondary" id="download-qr">↓ Download QR</button></div>${!profile.published?'<p class="error">Your card is currently private. Publish it in Edit card before sharing.</p>':''}</div></div><div class="panel" style="margin-top:18px"><h3 style="margin-bottom:8px">Your QR on your phone's Home Screen</h3><p class="hint" style="margin-bottom:14px">Tap your Loop shortcut to show your personal QR code instantly. No app store or Wallet setup needed.</p><a class="btn secondary" href="#/my-qr/u/${encodeURIComponent(profile.username)}" id="open-personal-my-qr" style="max-width:100%">⌂ Set Up My QR Home Screen Shortcut →</a></div><div class="panel" style="margin-top:18px"><h3 style="margin-bottom:8px">Add your card to Google Wallet</h3><p class="hint" style="margin-bottom:14px">Keep your Loop card handy on your phone. Your Wallet QR code will open your live digital card when someone scans it.</p><button type="button" class="btn secondary" id="add-to-google-wallet" ${profile.published?'':'disabled'}>▣ Add to Google Wallet</button><p id="google-wallet-status" role="status" aria-live="polite" class="hint" style="margin-top:10px"></p><p class="hint" style="margin-top:8px">Testing: Google Wallet is in demo mode, so only approved test accounts can save a pass.</p></div>`;wireCard(profile);
 drawQR(profile);
 const shareQR = document.getElementById('qr-canvas');
 if (shareQR) {
