@@ -2,7 +2,7 @@
 (()=>{'use strict';
 const cfg=window.THE_LOOP_CONFIG||{};
 const configured=!!(cfg.supabaseUrl&&cfg.supabaseAnonKey);
-const db=configured?window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey):null;
+const db = configured   ? window.supabase.createClient(       cfg.supabaseUrl,       cfg.supabaseAnonKey,       {         auth: {           experimental: { passkey: true }         }       }     )   : null;
 const root=document.getElementById('app');
 let me=null,profile=null,view='overview',toastTimer;
 let pendingMobileView=null;
