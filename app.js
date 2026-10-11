@@ -23,6 +23,8 @@ const route=()=>{const hash=location.hash.slice(1)||'/';const [path,arg]=hash.sp
 const siteRoot=()=> (cfg.siteUrl||location.origin+location.pathname).split('#')[0].split('?')[0].replace(/\/*$/,'/');
 const resetUrl=()=>siteRoot()+'?page=reset';
 const onResetUrl=()=>new URLSearchParams(location.search).get('page')==='reset';
+// Preserve URL errors before Supabase cleans authentication fragments.
+const initialRecoveryError=(()=>{const p=new URLSearchParams(location.hash.slice(1));return p.get('error_description')||p.get('error_code')||''})();
 const onConfirmedUrl=()=>new URLSearchParams(location.search).get('page')==='confirmed';
 const urlFor=s=>siteRoot()+'#/u/'+encodeURIComponent(s);
 const avatar=p=>p?.username==='demo'?`<img class="avatar" alt="Fictional professional headshot of John Smith" src="demo-businessman.webp">`:p?.photo_url&&photoUrl(p.photo_url)?`<img class="avatar" alt="Profile portrait" src="${esc(photoUrl(p.photo_url))}">`:`<div class="avatar" aria-hidden="true">${esc((p?.full_name||'LC').trim().slice(0,2).toUpperCase())}</div>`;
@@ -506,8 +508,8 @@ async function loadContacts(){
 }
 async function resetPage(){
   if(!configured){render('<main class="center-wrap"><div class="panel">Password reset is unavailable until Supabase is configured.</div></main>');return}
-  if(!recoveryMode){render('<main class="center-wrap"><div class="panel auth"><h2>Verifying password-reset link</h2><p class="muted">If you just opened a reset email, please wait for verification. If it does not continue, your link may have expired; request a new one from Log in.</p><a class="btn secondary" href="'+esc(siteRoot()+'#/auth')+'">Go to Log in</a></div></main>');return}
-  if(!me){render('<main class="center-wrap"><div class="panel auth"><h2>Verifying reset link…</h2><p class="muted">Please wait a moment.</p></div></main>');return}
+  if(initialRecoveryError){render(`<main class="center-wrap"><div class="panel auth"><h2>Reset link unavailable</h2><p class="muted">${esc(initialRecoveryError)}. Please request a new password-reset email.</p><a class="btn secondary" href="${esc(siteRoot()+'#/auth')}">Return to Log in</a></div></main>`);return}
+  if(!recoveryMode||!me){render('<main class="center-wrap"><div class="panel auth"><h2>Reset link could not be verified</h2><p class="muted">Open the newest password-reset email once. If this page still appears, request another link from Log in.</p><a class="btn secondary" href="'+esc(siteRoot()+'#/auth')+'">Return to Log in</a></div></main>');return}
   render('<main class="center-wrap"><form id="reset-form" class="panel auth form"><h2>Set a new password</h2><p class="muted">Enter a new password for your Loop account.</p><div class="field"><label for="reset-new">New password</label><input id="reset-new" type="password" name="password" minlength="8" autocomplete="new-password" required></div><div class="field"><label for="reset-confirm">Confirm new password</label><input id="reset-confirm" type="password" name="confirm" minlength="8" autocomplete="new-password" required></div><button class="btn block" type="submit">Update password</button><div id="reset-message" aria-live="polite"></div></form></main>');
   document.getElementById('reset-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),password=String(f.get('password')||''),confirm=String(f.get('confirm')||''),box=document.getElementById('reset-message'),btn=e.target.querySelector('button[type=submit]');if(password!==confirm){box.innerHTML='<div class="error">Passwords do not match.</div>';return}btn.disabled=true;box.textContent='Updating…';try{const {error}=await db.auth.updateUser({password});if(error)throw error;recoveryMode=false;box.innerHTML='<div class="success">Password updated. You can now log in with your new password.</div>';await db.auth.signOut();history.replaceState(null,'',siteRoot()+'#/auth');me=null;authPage(false)}catch(err){box.innerHTML=`<div class="error">${esc(err.message)}</div>`;btn.disabled=false}};
 }
@@ -533,13 +535,19 @@ if(db){
       resetPage();
       return;
     }
+    if(event==='SIGNED_IN' && onResetUrl() && !initialRecoveryError && session?.user){
+      // Some mobile email browsers establish the session without delivering PASSWORD_RECOVERY.
+      recoveryMode=true;resetPage();return;
+    }
     if(event==='SIGNED_IN' && onConfirmedUrl() && !recoveryMode){finishConfirmation();return;}
     if(event==='SIGNED_OUT' && !recoveryMode && !onResetUrl()){unreadConnections=0;syncUnreadBadges();if(connectionPoll){clearInterval(connectionPoll);connectionPoll=null;}navigate();}
   });
   db.auth.getSession().then(({data})=>{
     me=data.session?.user||null;
      if(me){refreshUnreadConnections();if(connectionPoll)clearInterval(connectionPoll);connectionPoll=setInterval(refreshUnreadConnections,60000);}
-    // Password recovery event takes precedence over ordinary account navigation.
+    // A recovery URL may already have had its tokens consumed before our listener ran.
+    // Require a valid Supabase session; never grant access just because ?page=reset exists.
+    if(onResetUrl() && !initialRecoveryError && me)recoveryMode=true;
     if(onResetUrl()||recoveryMode)resetPage();
     else if(!finishConfirmation())navigate();
   });
