@@ -214,25 +214,64 @@ function signatureParts(p, includePhoto, includeQR){
 }
 function showSignatureGenerator(){
  const el=document.getElementById('dash-body');
- el.innerHTML=`<div class="panel" style="max-width:850px"><h2 style="margin-bottom:8px">Create your email signature</h2><p class="hint" style="margin-bottom:18px">Use your Loop profile in Outlook, Gmail, or other email apps. Only contact details you have chosen to make public are included.</p><label class="check" style="margin-bottom:12px"><input id="signature-photo" type="checkbox" ${profile.photo_url?'checked':''} ${profile.photo_url?'':'disabled'}> Include profile photo</label><label class="check" style="margin-bottom:12px"><input id="signature-qr" type="checkbox"> Include QR code (some email apps may remove it)</label><div id="signature-preview" style="padding:20px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;color:#243449;margin:18px 0;overflow-wrap:anywhere"></div><div class="actions"><button class="btn" id="signature-copy" type="button">Copy email signature</button><button class="btn secondary" id="signature-copy-text" type="button">Copy text version</button></div><p class="hint" style="margin-top:14px">Paste into your email app's signature settings. Gmail and Outlook may format images differently. The card link remains clickable even if an image is removed.</p></div>`;
+ el.innerHTML=`<div class="panel" style="max-width:850px"><h2 style="margin-bottom:8px">Create your email signature</h2><p class="hint" style="margin-bottom:18px">Use your Loop profile in Outlook, Gmail, or other email apps. Only contact details you have chosen to make public are included.</p><label class="check" style="margin-bottom:12px"><input id="signature-photo" type="checkbox" ${profile.photo_url?'checked':''} ${profile.photo_url?'':'disabled'}> Include profile photo</label><label class="check" style="margin-bottom:12px"><input id="signature-qr" type="checkbox"> Include QR code (uses a publicly accessible QR image)</label><div id="signature-preview" style="padding:20px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;color:#243449;margin:18px 0;overflow-wrap:anywhere"></div><div class="actions"><button class="btn" id="signature-copy" type="button">Copy email signature</button><button class="btn secondary" id="signature-copy-text" type="button">Copy text version</button></div><p class="hint" style="margin-top:14px">Paste into your email app's signature settings. The QR code will be stored as a public image in your existing Supabase profile-photo storage. Some email clients may still hide remote images; the business-card link remains clickable.</p></div>`;
  const photo=document.getElementById('signature-photo'),qr=document.getElementById('signature-qr'),preview=document.getElementById('signature-preview');
  // QR source is generated from the same local QR library as Share & QR; never sent to a third party.
  let qrCanvas=null;
  if(typeof window.qrcode==='function'){
   try{const q=window.qrcode(0,'M');q.addData(urlFor(profile.username));q.make();const n=q.getModuleCount(),m=4,c=4;qrCanvas=document.createElement('canvas');qrCanvas.width=qrCanvas.height=(n+2*m)*c;const ctx=qrCanvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,qrCanvas.width,qrCanvas.height);ctx.fillStyle='#182335';for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(q.isDark(y,x))ctx.fillRect((x+m)*c,(y+m)*c,c,c);}catch{qr.disabled=true;}
  }else qr.disabled=true;
- // Provide a local QR canvas to signatureParts without altering the site's main QR canvas.
- if(qrCanvas)qrCanvas.id='signature-qr-canvas';
- const generate=()=>{
-  const wantsQR=qr.checked&&!!qrCanvas;
+ // Preview the QR locally, but use a hosted HTTPS PNG in the copied email signature.
+ // The public profile-photos bucket already restricts uploads to each owner's UUID folder.
+ const copyButton=document.getElementById('signature-copy');
+ let hostedQR='', qrUploadPromise=null;
+ const qrImage=(src)=>`<td style="padding-left:12px;vertical-align:top"><a href="${esc(urlFor(profile.username))}"><img src="${esc(src)}" alt="My Loop QR" width="84" height="84" style="display:block;width:84px;height:84px;border:0"></a></td>`;
+ const generate=(forEmail=false)=>{
   const {html,plain}=signatureParts(profile,photo.checked,false);
-  if(!wantsQR)return {html,plain};
-  const source=qrCanvas.toDataURL('image/png');
-  const tagged=html.replace('</tr></table>',`<td style="padding-left:12px;vertical-align:top"><img src="${source}" alt="My Loop QR" width="84" height="84" style="width:84px;height:84px"></td></tr></table>`);
-  return {html:tagged,plain};
+  if(!qr.checked||!qrCanvas)return {html,plain};
+  const imageUrl=forEmail?hostedQR:(hostedQR||qrCanvas.toDataURL('image/png'));
+  if(!imageUrl)return {html,plain};
+  return {html:html.replace('</tr></table>',qrImage(imageUrl)+'</tr></table>'),plain};
  };
- const update=()=>{preview.innerHTML=generate().html;};photo.onchange=update;qr.onchange=update;update();
- document.getElementById('signature-copy').onclick=async()=>{const {html,plain}=generate();try{if(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')throw Error('Rich clipboard unavailable');await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([plain],{type:'text/plain'})})]);announce('Signature copied! Paste into your email signature settings.')}catch{announce('Rich copy unavailable. Select the preview and copy it manually, or use Copy text version.')}};
+ const update=()=>{preview.innerHTML=generate().html;};
+ const prepareHostedQR=async()=>{
+  if(hostedQR)return hostedQR;
+  if(qrUploadPromise)return qrUploadPromise;
+  if(!db||!me||!qrCanvas)throw Error('Sign in to add a QR image.');
+  copyButton.disabled=true;
+  copyButton.textContent='Preparing QR image…';
+  qrUploadPromise=(async()=>{
+   const blob=await new Promise((resolve,reject)=>qrCanvas.toBlob(b=>b?resolve(b):reject(Error('QR image could not be created.')),'image/png'));
+   // Deterministic name: existing signatures keep working instead of uploading duplicates.
+   const path=`${me.id}/loop-email-qr-${profile.username}.png`;
+   const {error}=await db.storage.from('profile-photos').upload(path,blob,{contentType:'image/png',upsert:false,cacheControl:'3600'});
+   // A previous copy may have created this exact PNG already.
+   if(error && String(error.statusCode)!=='409' && !/already exists|duplicate/i.test(error.message||''))throw error;
+   const {data}=db.storage.from('profile-photos').getPublicUrl(path);
+   if(!safeUrl(data?.publicUrl))throw Error('Could not obtain a public QR image URL.');
+   hostedQR=data.publicUrl;
+   return hostedQR;
+  })();
+  try{return await qrUploadPromise;}
+  finally{qrUploadPromise=null;copyButton.disabled=false;copyButton.textContent='Copy email signature';update();}
+ };
+ photo.onchange=update;
+ qr.onchange=()=>{
+  update();
+  if(qr.checked&&!hostedQR){
+   prepareHostedQR().catch(e=>{qr.checked=false;update();announce('Could not prepare QR image: '+e.message);});
+  }
+ };
+ update();
+ document.getElementById('signature-copy').onclick=async()=>{
+  if(qr.checked&&!hostedQR){announce('QR image is still preparing. Please try again.');return;}
+  const {html,plain}=generate(true);
+  try{
+   if(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')throw Error('Rich clipboard unavailable');
+   await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([plain],{type:'text/plain'})})]);
+   announce('Signature copied! Paste into your email signature settings.');
+  }catch{announce('Rich copy unavailable. Try Chrome on desktop or use Copy text version.');}
+ };
  document.getElementById('signature-copy-text').onclick=()=>copy(generate().plain);
 }
 function showDashboard(){render(`<main class="shell layout"><aside class="side">${[['overview','⌂ Overview'],['edit','✎ Edit card'],['share','▦ Share & QR'],['signature','✉ Email Signature'],['contacts','⇄ Connections']].map(([v,label])=>`<button data-view="${v}" class="${view===v?'active':''}">${label}${v==='contacts'?'<span class="connection-badge" data-unread-count hidden></span>':''}</button>`).join('')}</aside><section><div class="top-row"><div><h1>${({overview:'My Account',edit:'Edit your card',share:'Share your card',signature:'Email Signature Generator',contacts:'Your connections'})[view]}</h1><p>Welcome${profile.full_name?', '+esc(profile.full_name.split(' ')[0]):''}. Your network starts here.</p></div>${profile.published?`<a href="#/u/${encodeURIComponent(profile.username)}" class="btn secondary small">View public card ↗</a>`:'<span class="hint">Card is private</span>'}</div><div id="dash-body"></div></section></main>`);document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;showDashboard()});const el=document.getElementById('dash-body');if(view==='overview'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:20px;margin-bottom:10px">Your digital identity</h2><p class="muted" style="margin-bottom:20px">Keep your card current and share it anywhere.</p>${card(profile)}</div><div class="panel"><h3 style="margin-bottom:16px">Quick share</h3>${qrBlock(profile)}<p class="hint" style="margin-top:16px">${profile.published?'Your card is public.':'Publish your card in Edit card before sharing.'}</p></div></div>`;wireCard(profile);drawQR(profile)}else if(view==='edit'){el.innerHTML=`<div class="panel"><div class="info-strip" style="margin-bottom:20px">Only publish information you're comfortable sharing publicly. Changes to your username will change your card link.</div>${profileForm(profile)}</div>`;document.getElementById('profile-form').onsubmit=saveProfile;wireProfileEditor()}else if(view==='share'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:19px">Your QR code</h2><p class="hint" style="margin:8px 0 20px">Others can scan this directly with their phone cameras.</p>${qrBlock(profile)}<div class="actions"><button class="btn" data-action="native-share">↗ Share card</button><button class="btn secondary" data-action="share-by-email">✉ Email card</button><button class="btn secondary" id="share-qr-image">↗ Share QR image</button><button class="btn secondary" id="download-qr">↓ Download QR</button></div>${!profile.published?'<p class="error">Your card is currently private. Publish it in Edit card before sharing.</p>':''}</div><div>${card(profile)}</div></div>`;wireCard(profile);drawQR(profile);document.querySelector('[data-action="share-by-email"]').onclick=()=>{const subject=`${profile.full_name||'My'} digital business card | the Loop`;const body=`Hello,\n\nHere is my digital business card:\n${profile.full_name||''}${profile.title?' — '+profile.title:''}\n${urlFor(profile.username)}\n\nScan the QR code shown on my card page, or open the link above to save my contact information.\n\nBest regards,\n${profile.full_name||''}`;window.location.href=`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;};document.getElementById('share-qr-image').onclick=async()=>{const canvas=document.getElementById('qr-canvas');if(!canvas||!canvas.width){announce('QR code is not ready');return}const base64=canvas.toDataURL('image/png').split(',')[1];const binary=atob(base64);const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);const file=new File([bytes],'the-loop-qr.png',{type:'image/png'});if(navigator.share&&navigator.canShare?.({files:[file]})){try{await navigator.share({title:`${profile.full_name} | the Loop`,text:`My digital business card: ${urlFor(profile.username)}`,files:[file]});return}catch(err){if(err.name==='AbortError')return;}}const a=document.createElement('a');a.download='the-loop-qr.png';a.href=canvas.toDataURL('image/png');a.click();announce('QR image downloaded. Attach it to your email manually.');};document.getElementById('download-qr').onclick=()=>{const canvas=document.getElementById('qr-canvas');if(!canvas)return;const a=document.createElement('a');a.download='the-loop-qr.png';a.href=canvas.toDataURL('image/png');a.click()}}else if(view==='signature'){showSignatureGenerator()}else if(view==='contacts'){el.innerHTML='<div class="panel"><h3>People who exchanged details with you</h3><p class="hint" style="margin-top:8px">Private to your account.</p><div class="connections-toolbar"><button type="button" class="btn secondary small" id="select-all-connections">☑ Select All</button><button type="button" class="btn secondary small" id="clear-connection-selection">Clear</button><button type="button" class="btn secondary small" id="export-selected-csv" disabled>↓ Download CSV</button><button type="button" class="btn secondary small" id="print-selected-connections" disabled>▤ Print / PDF</button><button type="button" class="btn secondary small connection-delete-button" id="delete-selected-connections" disabled>Delete</button><span id="connection-selection-count" class="hint" aria-live="polite">0 selected</span></div><div class="contact-search-row"><label for="contact-search">Search your connections</label><input id="contact-search" type="search" placeholder="Search name, email, phone, company…" autocomplete="off" aria-controls="contacts-list"><p id="contact-count" class="contact-count" aria-live="polite"></p></div><div id="contacts-list" class="loader">Loading connections…</div></div>';loadContacts()}}
