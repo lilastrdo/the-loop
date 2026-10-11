@@ -5,6 +5,7 @@ const configured=!!(cfg.supabaseUrl&&cfg.supabaseAnonKey);
 const db=configured?window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{experimental:{passkey:true}}}):null;
 const root=document.getElementById('app');
 let me=null,profile=null,view='overview',toastTimer;
+let goodbyeConfirmed=false,goodbyeFeedbackToken=''; // Local result of a successfully verified permanent deletion.
 let pendingMobileView=null;
 let unreadConnections=0;
  let connectionLastViewed=null;
@@ -470,11 +471,18 @@ function showSettingsPage(){
   if(!window.confirm('FINAL CONFIRMATION: Permanently delete your Loop account, card, connections and uploaded files? This cannot be undone.'))return;
   deleteConfirm.disabled=true;deleteRequest.disabled=true;deleteStatus.textContent='Deleting your account and files… Please keep this page open.';
   try{
-   await callDeletionService({action:'confirm',code,confirmation:'DELETE'});
-   try{await db.auth.signOut({scope:'local'});}catch{}
+   const result=await callDeletionService({action:'confirm',code,confirmation:'DELETE'});
+   goodbyeConfirmed=true;
+   goodbyeFeedbackToken=typeof result.feedbackToken==='string'?result.feedbackToken:'';
+   try{
+     sessionStorage.setItem('loop-deletion-completed','1');
+     if(goodbyeFeedbackToken)sessionStorage.setItem('loop-deletion-feedback-token',goodbyeFeedbackToken);
+   }catch{}
+   // Change the route FIRST: signOut triggers an auth event that can rerender the page.
+   history.replaceState(null,'',siteRoot()+'#/goodbye');
    me=null;profile=null;view='overview';
-   history.replaceState(null,'',siteRoot()+'#/');
-   landing();announce('Your Loop account has been permanently deleted.');
+   try{await db.auth.signOut({scope:'local'});}catch{}
+   goodbyePage();
   }catch(error){deleteStatus.textContent='Account deletion not completed: '+error.message+' If files were partially removed, contact support.';deleteConfirm.disabled=false;deleteRequest.disabled=false;}
  };
  if(me?.user_metadata?.loop_passkey_offer)msg.textContent='Your account is ready! You can set up your passkey now, or do it later.';
@@ -679,7 +687,100 @@ function finishConfirmation(){
   dashboard();
   return true;
 }
-async function navigate(){if(onResetUrl()){resetPage();return}if(onConfirmedUrl()){if(!finishConfirmation())confirmationPage();return}const {path,arg}=route();if(path==='/'){landing();return}if(path==='/demo'){demoPage();return}if(path==='/auth'){authPage(arg==='signup');return}if(path==='/dashboard'){dashboard();return}if(path==='/reset'){resetPage();return}if(path.startsWith('/u/')){publicPage(decodeURIComponent(path.slice(3)));return}landing()}
+
+/**
+ * Post-deletion page. The anonymous feedback invitation is a single-use,
+ * 24-hour token issued only after the delete-account server confirms success.
+ * We do not accept or store deleted-user IDs or email addresses.
+ */
+function goodbyePage(){
+  let confirmed=goodbyeConfirmed,token=goodbyeFeedbackToken;
+  try{
+    confirmed=confirmed||sessionStorage.getItem('loop-deletion-completed')==='1';
+    token=token||sessionStorage.getItem('loop-deletion-feedback-token')||'';
+  }catch{}
+  if(!confirmed){
+    render(`<main class="center-wrap"><div class="panel auth" style="text-align:center"><h1 style="font-size:26px;margin-bottom:12px">Thanks for visiting the Loop</h1><p class="muted">We appreciate your interest in our community.</p><a class="btn" href="#/" style="margin-top:18px">Return to homepage</a></div></main>`);
+    return;
+  }
+  render(`<main class="shell" style="padding-top:38px;padding-bottom:56px;max-width:790px">
+    <section class="panel" style="text-align:center;padding:clamp(24px,5vw,44px);margin-bottom:20px">
+      <div aria-hidden="true" style="font-size:35px;margin-bottom:12px">♡</div>
+      <div class="eyebrow" style="margin-bottom:12px">A note from the Loop</div>
+      <h1 style="font-size:clamp(25px,5vw,37px);line-height:1.2;margin-bottom:18px">Thank you for being part of the Loop.</h1>
+      <p class="muted" style="line-height:1.8;margin:0 auto;max-width:560px">We're sorry to see you go. Your account has been permanently deleted, and we're grateful you gave the Loop a try.</p>
+    </section>
+    <section id="goodbye-feedback-panel" class="panel" style="padding:clamp(22px,4vw,34px)" ${token?'':'hidden'}>
+      <h2 style="font-size:22px;margin-bottom:8px">Help us make the Loop better</h2>
+      <p class="hint" style="margin-bottom:24px">Your feedback is optional and anonymous. We won't connect it to your deleted account. Please don't include personal information.</p>
+      <form id="goodbye-feedback-form" class="form">
+        <div class="field"><label for="goodbye-reason">Why did you decide to leave? (optional)</label>
+          <select name="reason" id="goodbye-reason" style="width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:11px;background:var(--card,#fff);color:var(--ink);font:inherit">
+            <option value="">Choose a reason</option>
+            <option value="Not using the Loop enough">I wasn't using the Loop enough</option>
+            <option value="Missing features">The Loop was missing features I needed</option>
+            <option value="Technical issues">I experienced technical issues</option>
+            <option value="Privacy concerns">I had privacy concerns</option>
+            <option value="Found another service">I found another service</option>
+            <option value="Other">Other reason</option>
+          </select>
+        </div>
+        <div class="field"><label for="goodbye-rating">How would you rate your experience? (optional)</label>
+          <select name="rating" id="goodbye-rating" style="width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:11px;background:var(--card,#fff);color:var(--ink);font:inherit">
+            <option value="">Select a rating</option>
+            <option value="5">★★★★★ — Excellent</option>
+            <option value="4">★★★★☆ — Good</option>
+            <option value="3">★★★☆☆ — Okay</option>
+            <option value="2">★★☆☆☆ — Could be better</option>
+            <option value="1">★☆☆☆☆ — Poor</option>
+          </select>
+        </div>
+        <div class="field"><label for="goodbye-comments">What could we do better? (optional)</label>
+          <textarea id="goodbye-comments" name="comments" rows="4" maxlength="500" placeholder="Share any thoughts or suggestions…"></textarea>
+        </div>
+        <div class="actions" style="align-items:center;gap:12px;flex-wrap:wrap">
+          <button type="submit" class="btn" id="goodbye-submit">Submit feedback</button>
+          <button type="button" class="btn secondary" id="goodbye-skip">No thanks</button>
+        </div>
+        <p id="goodbye-status" class="hint" aria-live="polite" role="status" style="margin-top:12px"></p>
+      </form>
+    </section>
+    <section id="goodbye-thanks" class="panel" style="padding:22px;text-align:center" ${token?'hidden':''}>
+      <p class="muted">Thank you for being part of the Loop. We wish you all the best.</p>
+    </section>
+    <div style="text-align:center;margin-top:22px"><a href="#/" class="btn secondary">Return to homepage →</a></div>
+  </main>`);
+  if(!token)return;
+  const form=document.getElementById('goodbye-feedback-form');
+  const message=document.getElementById('goodbye-status');
+  const submit=document.getElementById('goodbye-submit');
+  const dismiss=()=>{
+    goodbyeFeedbackToken='';
+    try{sessionStorage.removeItem('loop-deletion-feedback-token');}catch{}
+    document.getElementById('goodbye-feedback-panel').hidden=true;
+    document.getElementById('goodbye-thanks').hidden=false;
+  };
+  document.getElementById('goodbye-skip').onclick=dismiss;
+  form.onsubmit=async event=>{
+    event.preventDefault();
+    const formData=new FormData(form),reason=String(formData.get('reason')||''),ratingValue=String(formData.get('rating')||''),comments=String(formData.get('comments')||'').trim();
+    if(!reason&&!ratingValue&&!comments){message.textContent='Choose a reason, select a rating, or leave a comment — or click No thanks.';return;}
+    const rating=ratingValue?Number(ratingValue):null;
+    submit.disabled=true;message.textContent='Sending your feedback…';
+    try{
+      const response=await fetch(cfg.supabaseUrl.replace(/\/$/,'')+'/functions/v1/account-feedback',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':cfg.supabaseAnonKey},
+        body:JSON.stringify({token,reason,rating,comments}),
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||!result.ok)throw Error(result.error||'Could not submit feedback.');
+      dismiss();
+      document.querySelector('#goodbye-thanks p').textContent='Thank you for sharing your thoughts. Your feedback will help us improve the Loop.';
+    }catch(error){message.textContent='Could not send feedback: '+error.message;submit.disabled=false;}
+  };
+}
+async function navigate(){if(onResetUrl()){resetPage();return}if(onConfirmedUrl()){if(!finishConfirmation())confirmationPage();return}const {path,arg}=route();if(path==='/'){landing();return}if(path==='/demo'){demoPage();return}if(path==='/goodbye'){goodbyePage();return}if(path==='/auth'){authPage(arg==='signup');return}if(path==='/dashboard'){dashboard();return}if(path==='/reset'){resetPage();return}if(path.startsWith('/u/')){publicPage(decodeURIComponent(path.slice(3)));return}landing()}
 if(db){
   db.auth.onAuthStateChange((event,session)=>{
     me=session?.user||null;
