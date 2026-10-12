@@ -1,0 +1,25 @@
+{
+  "id": "/loop-qr-home-shortcut",
+  "name": "My Digital Card-the Loop",
+  "short_name": "My Digital Card-the Loop",
+  "description": "Open the QR code for my public Loop digital business card, without signing in.",
+  "start_url": "/?qr-shortcut=1#/my-qr",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#182335",
+  "theme_color": "#182335",
+  "icons": [
+    {
+      "src": "/loop-qr-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/loop-qr-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
