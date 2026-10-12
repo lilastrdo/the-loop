@@ -35,12 +35,33 @@ const MY_QR_ROUTE='/my-qr';
 const MY_QR_PREFIX='/my-qr/u/';
 const MY_QR_LINK=username=>siteRoot()+'#'+MY_QR_PREFIX+encodeURIComponent(username);
 const MY_QR_LAST_KEY='loop-qr-shortcut-username';
+const MY_QR_INSTALLED_KEY='loop-qr-installed-username'; // Only set when a user taps Add to Home Screen.
+const MY_QR_INSTALL_NAME='My Digital Card-the Loop';
 const defaultDocumentTitle=document.title;
+const isAndroidChrome=()=>/Android/i.test(navigator.userAgent||'')&&/Chrome\//i.test(navigator.userAgent||'')&&!/EdgA|SamsungBrowser|OPR\//i.test(navigator.userAgent||'');
+let deferredQuickQrPrompt=null;
+// Only use Chrome's install prompt for this dedicated QR web app.
+// The manifest opens /#/my-qr, which resolves the public username previously
+// selected on THIS browser (saved below), without retaining any login token.
+window.addEventListener('beforeinstallprompt',event=>{
+  const availableManifests=[...document.querySelectorAll('link[rel=manifest]')];
+  if(!isAndroidChrome()||!location.hash.startsWith('#'+MY_QR_PREFIX)||availableManifests.length!==1||!availableManifests[0].dataset.loopQuickQrManifest)return;
+  event.preventDefault();
+  deferredQuickQrPrompt=event;
+});
+window.addEventListener('appinstalled',()=>{deferredQuickQrPrompt=null;});
 function updateQuickQrInstallMetadata(enabled){
-  document.title=enabled?'my digital business card-the Loop':defaultDocumentTitle;
-  // Deliberately don't attach a static PWA manifest here: its fixed start_url
-  // would discard the username in a per-person home-screen shortcut.
-  document.querySelector('link[data-loop-quick-qr-manifest]')?.remove();
+  document.title=enabled?MY_QR_INSTALL_NAME:defaultDocumentTitle;
+  let manifest=document.querySelector('link[data-loop-quick-qr-manifest]');
+  // iPhone users add the exact open page from Safari's Share menu. Do not put
+  // a generic PWA start_url in their way. Only offer a manifest to Android Chrome.
+  if(enabled&&isAndroidChrome()){
+    if(!manifest){manifest=document.createElement('link');manifest.rel='manifest';manifest.dataset.loopQuickQrManifest='1';document.head.appendChild(manifest);}
+    manifest.href=siteRoot()+'loop-qr.webmanifest';
+  }else{
+    manifest?.remove();
+    deferredQuickQrPrompt=null;
+  }
   let icon=document.querySelector('link[data-loop-quick-qr-icon]');
   if(enabled){
     if(!icon){icon=document.createElement('link');icon.rel='apple-touch-icon';icon.dataset.loopQuickQrIcon='1';document.head.appendChild(icon);}
@@ -177,6 +198,16 @@ async function myQuickQrPage(username=''){
   // Existing generic shortcuts can upgrade to the owner's personalized URL.
   // This fallback never needs a stored password or authentication token.
   if(!username){
+    // Installed Android QR app opens its fixed launch route. Restore the
+    // public card chosen during installation, independently of login state.
+    if(new URLSearchParams(location.search).get('qr-shortcut')==='1'){
+      let selected='';
+      try{selected=localStorage.getItem(MY_QR_INSTALLED_KEY)||'';}catch{}
+      if(/^[A-Za-z0-9_.-]{1,60}$/.test(selected)){
+        location.hash=MY_QR_PREFIX+encodeURIComponent(selected);
+        return;
+      }
+    }
     if(me){
       render('<div class="loader">Opening your Loop QR…</div>');
       try{
@@ -218,6 +249,9 @@ async function myQuickQrPage(username=''){
     return;
   }
   const homeUrl=MY_QR_LINK(p.username);
+  // Chrome's personalized QR install uses a fixed start route, so save only
+  // this public username locally before it offers an install prompt.
+  try{localStorage.setItem(MY_QR_LAST_KEY,p.username);}catch{}
   render(`<main class="shell" style="max-width:670px;padding-top:26px;padding-bottom:56px">
     <section class="panel" style="background:#223449;color:#fff;text-align:center;padding:clamp(20px,5vw,34px);border:1px solid #3f526c;box-shadow:0 16px 42px #0002">
       <p style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#d8e3f5;margin-bottom:12px">My Loop QR</p>
@@ -256,7 +290,7 @@ async function myQuickQrPage(username=''){
         <h2 id="my-qr-guide-heading" style="font-size:20px;margin:0">Add to Home Screen</h2>
         <button type="button" id="my-qr-guide-close" class="btn ghost small" aria-label="Close shortcut instructions" style="min-width:38px;padding:6px">✕</button>
       </div>
-      <p class="muted" style="font-size:14px;line-height:1.6;margin-bottom:14px">Keep this QR page open while following your browser's steps.</p>
+      <p class="muted" style="font-size:14px;line-height:1.6;margin-bottom:14px">Keep this personal QR page open. Your shortcut will be named <strong>My Digital Card-the Loop</strong>.</p>
       <div id="my-qr-guide-steps" style="font-size:14px;line-height:1.8;padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--bg)"></div>
       <p class="hint" style="margin-top:12px">If offered both choices, select <strong>Create shortcut</strong> to preserve your personal QR link.</p>
       <button type="button" class="btn secondary block" id="my-qr-copy-shortcut" style="margin-top:16px">Copy personal shortcut link</button>
@@ -275,23 +309,39 @@ async function myQuickQrPage(username=''){
     const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='my-loop-qr.png';a.click();
   };
   const myQrDialog=document.getElementById('my-qr-install-dialog');
-  document.getElementById('my-qr-install').onclick=()=>{
-    // Browser shortcuts require a user action in the browser or operating system.
-    // We do not use the generic PWA install prompt; its fixed start_url would
-    // replace the personalized QR link with the public Loop homepage.
+  const showManualQrInstallSteps=()=>{
     const steps=document.getElementById('my-qr-guide-steps');
     const ua=navigator.userAgent||'';
     const isiOS=/iPhone|iPad|iPod/i.test(ua)||(/Macintosh/i.test(ua)&&navigator.maxTouchPoints>1);
     const isAndroid=/Android/i.test(ua);
     if(isAndroid){
-      steps.innerHTML='<strong>Android · Chrome</strong><br>1. Tap Chrome’s <strong>⋮ menu</strong> (top right).<br>2. Choose <strong>Install and create shortcut</strong>.<br>3. Select <strong>Create shortcut</strong>, then <strong>Add</strong>.';
+      steps.innerHTML='<strong>Android · Chrome</strong><br>1. Keep this personal QR page open.<br>2. Tap Chrome’s <strong>⋮ menu</strong> (top right) → <strong>Install and create shortcut</strong>.<br>3. Choose <strong>Create shortcut</strong> rather than Install (if both are offered), set its name to <strong>My Digital Card-the Loop</strong>, then tap <strong>Add</strong>.<br><br><small>This method pins this exact public QR address. An automatic install prompt only appears when Chrome makes it available.</small>';
     }else if(isiOS){
-      steps.innerHTML='<strong>iPhone · Safari</strong><br>1. Open this page in <strong>Safari</strong>.<br>2. Tap the <strong>Share</strong> icon.<br>3. Choose <strong>Add to Home Screen</strong>, then <strong>Add</strong>.';
+      steps.innerHTML='<strong>iPhone · Safari</strong><br>1. Open this personal QR page in <strong>Safari</strong> (if needed, copy its shortcut link below).<br>2. Tap <strong>Share</strong> (or Page Menu → Share).<br>3. Choose <strong>Add to Home Screen</strong>.<br>4. Name it <strong>My Digital Card-the Loop</strong> and tap <strong>Add</strong>.<br><br><small>If there is an “Open as Web App” switch, you can turn it off to pin the exact personal page as a regular Safari shortcut.</small>';
     }else{
-      steps.innerHTML='<strong>Android · Chrome:</strong> ⋮ menu → Install and create shortcut → Create shortcut → Add.<br><br><strong>iPhone · Safari:</strong> Share → Add to Home Screen → Add.';
+      steps.innerHTML='<strong>Android · Chrome:</strong> ⋮ menu → Install and create shortcut → Create shortcut → Add.<br><br><strong>iPhone · Safari:</strong> Share → Add to Home Screen → name it My Digital Card-the Loop → Add.';
     }
     if(typeof myQrDialog.showModal==='function')myQrDialog.showModal();
-    else {myQrDialog.setAttribute('open','');}
+    else myQrDialog.setAttribute('open','');
+  };
+  document.getElementById('my-qr-install').onclick=()=>{
+    // The prompt can only be used during a real click and if Chrome made it
+    // available. It installs /#/my-qr, which reads the selected public username
+    // saved above. Without a prompt, use the exact-link bookmark instructions.
+    try{localStorage.setItem(MY_QR_INSTALLED_KEY,p.username);}catch{}
+    const usableManifest=document.querySelectorAll('link[rel=manifest]').length===1&&!!document.querySelector('link[data-loop-quick-qr-manifest]');
+    if(deferredQuickQrPrompt&&isAndroidChrome()&&usableManifest){
+      const prompt=deferredQuickQrPrompt;
+      deferredQuickQrPrompt=null;
+      try{
+        prompt.prompt();
+        Promise.resolve(prompt.userChoice).then(choice=>{
+          if(choice?.outcome==='dismissed')announce('Installation cancelled. Use the browser menu to create a shortcut anytime.');
+        }).catch(()=>{});
+        return;
+      }catch(_error){/* Some browsers decline the prompt: use safe manual fallback. */}
+    }
+    showManualQrInstallSteps();
   };
   const closeMyQrDialog=()=>{if(typeof myQrDialog.close==='function')myQrDialog.close();else myQrDialog.removeAttribute('open');};
   document.getElementById('my-qr-guide-close').onclick=closeMyQrDialog;
@@ -346,7 +396,7 @@ function loopTogglePassword(inputId,buttonId){
     button.innerHTML=`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${visible?'<path d="M3 3l18 18M10.6 5.1A11 11 0 0 1 12 5c6.5 0 10 7 10 7a15 15 0 0 1-4 4.8M6.6 6.6C3.6 8.6 2 12 2 12s3.5 7 10 7a10.8 10.8 0 0 0 4.2-.9"/>':'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>'}</svg>`;
   });
 }
-async function authPage(signup=false){if(me){location.hash=afterQuickQrLogin();return}render(`<main class="center-wrap"><div class="panel auth"><div class="brand"><img src="loop-logo.png" alt="the Loop logo" class="brand-logo">the Loop</div><h2>Welcome ${signup?'to the Loop':'back'}</h2><p class="muted">${signup?'Create an account to design and share your digital card.':'Log in to manage your digital card and contacts.'}</p>${!configured?'<div class="info-strip" style="margin-top:18px">Demo mode: add your Supabase URL and publishable key in config.js to activate accounts.</div>':''}<div class="tabs"><button class="tab ${signup?'':'active'}" data-tab="login">Log in</button><button class="tab ${signup?'active':''}" data-tab="signup">Sign up</button></div><form class="form" id="auth-form">${signup?'<div class="field"><label>Full name</label><input name="name" autocomplete="name" required maxlength="100"></div>':''}<div class="field"><label>Email</label><input name="email" type="email" autocomplete="email" required></div>${signup?'<div class="field"><label for="signup-email-confirm">Confirm Email</label><input id="signup-email-confirm" name="confirm_email" type="email" autocomplete="off" required></div>':''}<div class="field"><label>Password</label><div style="position:relative"><input id="auth-password" name="password" type="password" minlength="8" autocomplete="${signup?'new-password':'current-password'}" required style="width:100%;padding-right:52px"><button type="button" id="toggle-auth-password" aria-label="Show password" aria-pressed="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:inherit;cursor:pointer;padding:8px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>${signup?'<div id="signup-password-feedback" aria-live="polite"></div><div class="field"><label for="signup-password-confirm">Confirm Password</label><div style="position:relative"><input id="signup-password-confirm" name="confirm_password" type="password" minlength="8" autocomplete="new-password" required style="width:100%;padding-right:52px"><button type="button" id="toggle-signup-password-confirm" aria-label="Show password" aria-pressed="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:inherit;cursor:pointer;padding:8px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>':''}<button class="btn block" type="submit" ${configured?'':'disabled'}>${signup?'Create account':'Log in'}</button></form>${!signup?'<div style="margin:14px 0;text-align:center" class="hint">or</div><button type="button" class="btn secondary block" id="passkey-sign-in">Sign in with a passkey</button><button id="reset" class="btn ghost block" style="margin-top:10px">Forgot password?</button>':''}<div id="auth-message" aria-live="polite"></div></div></main>`);const togglePassword = document.getElementById('toggle-auth-password');
+async function authPage(signup=false){if(me){location.hash=afterQuickQrLogin();return}const passwordUpdatedNotice=!signup&&route().path==='/auth'&&route().arg==='password-updated'?'<div class="success" role="status" aria-live="polite" style="margin:16px 0;padding:14px"><strong>Password updated successfully!</strong><p style="margin:6px 0 0">You can now sign in with your new password.</p></div>':'';render(`<main class="center-wrap"><div class="panel auth"><div class="brand"><img src="loop-logo.png" alt="the Loop logo" class="brand-logo">the Loop</div><h2>Welcome ${signup?'to the Loop':'back'}</h2><p class="muted">${signup?'Create an account to design and share your digital card.':'Log in to manage your digital card and contacts.'}</p>${!configured?'<div class="info-strip" style="margin-top:18px">Demo mode: add your Supabase URL and publishable key in config.js to activate accounts.</div>':''}${passwordUpdatedNotice}<div class="tabs"><button class="tab ${signup?'':'active'}" data-tab="login">Log in</button><button class="tab ${signup?'active':''}" data-tab="signup">Sign up</button></div><form class="form" id="auth-form">${signup?'<div class="field"><label>Full name</label><input name="name" autocomplete="name" required maxlength="100"></div>':''}<div class="field"><label>Email</label><input name="email" type="email" autocomplete="email" required></div>${signup?'<div class="field"><label for="signup-email-confirm">Confirm Email</label><input id="signup-email-confirm" name="confirm_email" type="email" autocomplete="off" required></div>':''}<div class="field"><label>Password</label><div style="position:relative"><input id="auth-password" name="password" type="password" minlength="8" autocomplete="${signup?'new-password':'current-password'}" required style="width:100%;padding-right:52px"><button type="button" id="toggle-auth-password" aria-label="Show password" aria-pressed="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:inherit;cursor:pointer;padding:8px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>${signup?'<div id="signup-password-feedback" aria-live="polite"></div><div class="field"><label for="signup-password-confirm">Confirm Password</label><div style="position:relative"><input id="signup-password-confirm" name="confirm_password" type="password" minlength="8" autocomplete="new-password" required style="width:100%;padding-right:52px"><button type="button" id="toggle-signup-password-confirm" aria-label="Show password" aria-pressed="false" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:inherit;cursor:pointer;padding:8px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>':''}<button class="btn block" type="submit" ${configured?'':'disabled'}>${signup?'Create account':'Log in'}</button></form>${!signup?'<div style="margin:14px 0;text-align:center" class="hint">or</div><button type="button" class="btn secondary block" id="passkey-sign-in">Sign in with a passkey</button><button id="reset" class="btn ghost block" style="margin-top:10px">Forgot password?</button>':''}<div id="auth-message" aria-live="polite"></div></div></main>`);const togglePassword = document.getElementById('toggle-auth-password');
 const passwordInput = document.getElementById('auth-password');
 
 if (togglePassword && passwordInput) {
@@ -862,7 +912,7 @@ async function resetPage(){
       button.setAttribute('aria-pressed',String(visible));
     };
   }
-  document.getElementById('reset-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),password=String(f.get('password')||''),confirm=String(f.get('confirm')||''),box=document.getElementById('reset-message'),btn=e.target.querySelector('button[type=submit]');if(!loopPasswordValid(password)){box.innerHTML='<div class="error">Password must be at least 8 characters and contain uppercase, lowercase, and a number.</div>';return}if(password!==confirm){box.innerHTML='<div class="error">Passwords do not match.</div>';return}btn.disabled=true;box.textContent='Updating…';try{const {error}=await db.auth.updateUser({password});if(error)throw error;recoveryMode=false;box.innerHTML='<div class="success">Password updated. You can now log in with your new password.</div>';await db.auth.signOut();history.replaceState(null,'',siteRoot()+'#/auth');me=null;authPage(false)}catch(err){box.innerHTML=`<div class="error">${esc(err.message)}</div>`;btn.disabled=false}};
+  document.getElementById('reset-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),password=String(f.get('password')||''),confirm=String(f.get('confirm')||''),box=document.getElementById('reset-message'),btn=e.target.querySelector('button[type=submit]');if(!loopPasswordValid(password)){box.innerHTML='<div class="error">Password must be at least 8 characters and contain uppercase, lowercase, and a number.</div>';return}if(password!==confirm){box.innerHTML='<div class="error">Passwords do not match.</div>';return}btn.disabled=true;box.textContent='Updating…';try{const {error}=await db.auth.updateUser({password});if(error)throw error;recoveryMode=false;await db.auth.signOut();history.replaceState(null,'',siteRoot()+'#/auth?password-updated');me=null;authPage(false)}catch(err){box.innerHTML=`<div class="error">${esc(err.message)}</div>`;btn.disabled=false}};
 }
 function confirmationPage(){
   render(`<main class="center-wrap"><div class="panel auth"><h2>Continue to the Loop</h2><p class="muted" style="margin:12px 0 20px">If you just confirmed your email, sign in to finish setting up your digital card. On some phones, email links open in a different browser, so automatic sign-in may not carry over.</p><a class="btn block" href="${esc(siteRoot()+'#/auth')}">Log in to My Account</a><p class="hint" style="margin-top:12px">After you sign in for the first time, we will offer to set up your passkey right away.</p></div></main>`);
