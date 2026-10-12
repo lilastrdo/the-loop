@@ -237,17 +237,31 @@ async function myQuickQrPage(username=''){
       </div>
     </section>
     <section class="panel" style="margin-top:16px;padding:20px">
-      <h2 style="font-size:19px;margin-bottom:10px">Add My QR to Home Screen</h2>
-      <p class="muted" style="font-size:14px;line-height:1.6">This personal shortcut will open your public QR code without logging in. Keep this exact page open when adding it to your Home Screen.</p>
-      <button type="button" class="btn block" id="my-qr-install" aria-controls="my-qr-install-guide" aria-expanded="false" style="margin-top:14px;max-width:420px">⌂ Add My QR to Home Screen →</button>
-      <p class="hint" style="margin-top:10px;font-size:12px">Opens a quick setup guide. Your browser will ask you to confirm the shortcut.</p>
-      <div id="my-qr-install-guide" class="hint" role="region" aria-label="Add QR shortcut instructions" style="margin-top:14px;display:none;padding:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;line-height:1.8">
-        <strong id="my-qr-guide-heading">Home screen shortcut</strong>
-        <div id="my-qr-guide-steps" style="margin-top:6px"></div>
-        <p style="margin-top:10px;font-size:12px">Keep this exact QR page open. Choose <strong>Create shortcut</strong> rather than installing the general Loop app when Chrome offers both.</p>
+      <div style="display:flex;align-items:flex-start;gap:13px">
+        <div aria-hidden="true" style="flex:0 0 45px;width:45px;height:45px;border-radius:13px;background:#f0edff;color:#4f35d5;display:grid;place-items:center;font-size:25px">▦</div>
+        <div style="min-width:0">
+          <h2 style="font-size:19px;margin:2px 0 7px">My Digital Business Card</h2>
+          <p class="muted" style="font-size:14px;line-height:1.6">Add your personal Loop QR shortcut to your phone for instant access, without logging in.</p>
+        </div>
       </div>
-      <p class="hint" style="margin-top:13px">Personal shortcut address: <span id="my-qr-shortcut-url" style="word-break:break-all">${esc(homeUrl)}</span> <button class="btn ghost small" type="button" id="my-qr-copy-shortcut">Copy</button></p>
+      <button type="button" class="btn block" id="my-qr-install" aria-haspopup="dialog" aria-controls="my-qr-install-dialog" style="margin-top:16px;min-height:51px;background:#4f35d5;border-color:#4f35d5">⌂ Add to Home Screen</button>
+      <p class="hint" style="margin-top:10px;text-align:center">Quick setup · No app download required</p>
     </section>
+    <style>
+      #my-qr-install-dialog::backdrop{background:rgba(10,17,31,.68);backdrop-filter:blur(2px)}
+      #my-qr-install-dialog{width:420px;max-width:calc(100vw - 30px);max-height:calc(100dvh - 35px);overflow-y:auto;margin:auto;padding:22px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:20px;box-shadow:0 24px 72px #0006}
+    </style>
+    <dialog id="my-qr-install-dialog" aria-labelledby="my-qr-guide-heading" aria-modal="true">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
+        <h2 id="my-qr-guide-heading" style="font-size:20px;margin:0">Add to Home Screen</h2>
+        <button type="button" id="my-qr-guide-close" class="btn ghost small" aria-label="Close shortcut instructions" style="min-width:38px;padding:6px">✕</button>
+      </div>
+      <p class="muted" style="font-size:14px;line-height:1.6;margin-bottom:14px">Keep this QR page open while following your browser's steps.</p>
+      <div id="my-qr-guide-steps" style="font-size:14px;line-height:1.8;padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--bg)"></div>
+      <p class="hint" style="margin-top:12px">If offered both choices, select <strong>Create shortcut</strong> to preserve your personal QR link.</p>
+      <button type="button" class="btn secondary block" id="my-qr-copy-shortcut" style="margin-top:16px">Copy personal shortcut link</button>
+      <button type="button" class="btn block" id="my-qr-guide-done" style="margin-top:9px">Done</button>
+    </dialog>
     <div style="text-align:center;margin-top:22px"><a class="btn ghost" href="#/dashboard">← My Account</a></div>
   </main>`);
   drawQR(p);
@@ -260,30 +274,29 @@ async function myQuickQrPage(username=''){
     const c=document.getElementById('qr-canvas');if(!c?.width){announce('QR code is not ready.');return;}
     const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='my-loop-qr.png';a.click();
   };
+  const myQrDialog=document.getElementById('my-qr-install-dialog');
   document.getElementById('my-qr-install').onclick=()=>{
-    // The browser/OS must create the shortcut; websites cannot silently install one.
-    // We intentionally avoid the generic PWA install prompt because its fixed
-    // start_url could discard this user's personalized public QR address.
-    const guide=document.getElementById('my-qr-install-guide');
-    const heading=document.getElementById('my-qr-guide-heading');
+    // Browser shortcuts require a user action in the browser or operating system.
+    // We do not use the generic PWA install prompt; its fixed start_url would
+    // replace the personalized QR link with the public Loop homepage.
     const steps=document.getElementById('my-qr-guide-steps');
     const ua=navigator.userAgent||'';
     const isiOS=/iPhone|iPad|iPod/i.test(ua)||(/Macintosh/i.test(ua)&&navigator.maxTouchPoints>1);
     const isAndroid=/Android/i.test(ua);
     if(isAndroid){
-      heading.textContent='Android · Chrome';
-      steps.innerHTML='Tap Chrome’s <strong>⋮ menu</strong> (top right) → <strong>Install and create shortcut</strong> → <strong>Create shortcut</strong> → <strong>Add</strong>.';
+      steps.innerHTML='<strong>Android · Chrome</strong><br>1. Tap Chrome’s <strong>⋮ menu</strong> (top right).<br>2. Choose <strong>Install and create shortcut</strong>.<br>3. Select <strong>Create shortcut</strong>, then <strong>Add</strong>.';
     }else if(isiOS){
-      heading.textContent='iPhone · Safari';
-      steps.innerHTML='Tap <strong>Share</strong> (square with up arrow) → <strong>Add to Home Screen</strong> → <strong>Add</strong>. If this option is missing, open this page in Safari.';
+      steps.innerHTML='<strong>iPhone · Safari</strong><br>1. Open this page in <strong>Safari</strong>.<br>2. Tap the <strong>Share</strong> icon.<br>3. Choose <strong>Add to Home Screen</strong>, then <strong>Add</strong>.';
     }else{
-      heading.textContent='Add to your phone’s Home Screen';
-      steps.innerHTML='<strong>Android Chrome:</strong> ⋮ → Install and create shortcut → Create shortcut → Add.<br><strong>iPhone Safari:</strong> Share → Add to Home Screen → Add.';
+      steps.innerHTML='<strong>Android · Chrome:</strong> ⋮ menu → Install and create shortcut → Create shortcut → Add.<br><br><strong>iPhone · Safari:</strong> Share → Add to Home Screen → Add.';
     }
-    guide.style.display='block';
-    document.getElementById('my-qr-install').setAttribute('aria-expanded','true');
-    guide.scrollIntoView({behavior:'smooth',block:'nearest'});
+    if(typeof myQrDialog.showModal==='function')myQrDialog.showModal();
+    else {myQrDialog.setAttribute('open','');}
   };
+  const closeMyQrDialog=()=>{if(typeof myQrDialog.close==='function')myQrDialog.close();else myQrDialog.removeAttribute('open');};
+  document.getElementById('my-qr-guide-close').onclick=closeMyQrDialog;
+  document.getElementById('my-qr-guide-done').onclick=closeMyQrDialog;
+  myQrDialog.addEventListener('click',event=>{if(event.target===myQrDialog)closeMyQrDialog();});
 }
 
 function qrBlock(p){return `<div class="qrcard"><canvas id="qr-canvas" aria-label="QR code for public card"></canvas><p class="hint" style="margin-top:12px;text-align:center">Scan with your phone camera</p></div><div class="public-url" style="margin:12px 0">${esc(urlFor(p.username))}</div><button class="btn secondary block" data-action="copy-link">Copy card link</button>`}
