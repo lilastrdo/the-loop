@@ -99,18 +99,62 @@ const feature=(icon,name,desc)=>`<div class="feature"><div class="emoji">${icon}
 function landing(){render(`<main class="shell"><section class="hero"><div><div class="eyebrow">Your network. Your way.</div>
 <h1>Meet. Connect.<br>Stay in the <span class="slogan-accent">Loop.</span></h1>
 <p>A beautiful digital business card you can share by QR code, AirDrop, Messages, email, or link. Exchange details without needing an app or physical card.</p><style>
-/* Sign in stays on its own row. The two main call-to-action buttons sit side by side and use the Loop purple accent. */
-.loop-home-actions { display:flex; flex-direction:column; align-items:stretch; gap:12px; }
-.loop-home-actions .btn { display:inline-flex; align-items:center; justify-content:center; text-align:center; min-height:52px; line-height:1.35; border-radius:12px; font-weight:600; }
-.loop-home-actions .btn:hover { transform: translateY(-1px); }
-.loop-home-secondary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-.loop-home-actions .btn.loop-home-primary { background: var(--card,#fff); color: var(--ink,#182335); border: 1px solid var(--line,#dbe2ea); }
-.loop-home-actions .btn.loop-home-accent { background:#5b4cf0; color:#fff; border:1px solid #5b4cf0; }
-@media (max-width: 540px) {
-  .loop-home-secondary { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .loop-home-secondary .btn { width:100%; padding-left:14px; padding-right:14px; font-size:15px; }
+/* Clear action hierarchy: Create (primary), Explore (outlined), Sign in (quiet). */
+.loop-home-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.38fr) minmax(0, 1fr) max-content;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  max-width: 760px;
 }
-</style><div class="actions loop-home-actions"><a class="btn secondary loop-home-primary" href="#/auth">Sign in →</a><div class="loop-home-secondary"><a class="btn loop-home-accent" href="#/auth?signup">Create your digital card →</a><a class="btn loop-home-accent" href="#/demo">Explore the demo →</a></div></div></div><div class="hero-art hero-phone"><img src="hero-phone-demo.png" alt="Phone displaying a sample the Loop card alongside QR sharing" class="hero-phone-image"></div></section><section class="section"><h2>Everything you need to connect</h2><p>Fast to create, delightful to share, effortless to save.</p><div class="feature-grid">${feature('▦','Instant QR sharing','Show your QR code. Anyone can scan it with their phone camera.')}${feature('↗','Share anywhere','Use your phone’s native share menu for supported apps and nearby sharing.')}${feature('⇄','Two-way exchange','Visitors share their details with you, even if they have no account.')}${feature('◉','Beautiful profiles','Your photo, contact links, bio and professional identity in one place.')}${feature('✎','Update anytime','Edit your details. Your permanent card link stays the same.')}${feature('▤','Save to contacts','Recipients can download a contact file for their phone.')}</div></section></main>`)}
+.loop-home-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-width: 0;
+  min-height: 50px;
+  box-sizing: border-box;
+  line-height: 1.35;
+  padding: 11px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: normal;
+  transition: transform .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.loop-home-actions .btn:hover { transform: translateY(-1px); }
+.loop-home-actions .btn.loop-home-create {
+  background: #5b4cf0;
+  color: #fff;
+  border: 1px solid #5b4cf0;
+}
+.loop-home-actions .btn.loop-home-create:hover { background: #4f40d9; border-color: #4f40d9; }
+.loop-home-actions .btn.loop-home-demo {
+  background: var(--card, #fff);
+  color: #5546de;
+  border: 1px solid #5b4cf0;
+}
+.loop-home-actions .btn.loop-home-demo:hover { background: rgba(91,76,240,.08); }
+.loop-home-actions .btn.loop-home-signin {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink, #182335);
+  padding-inline: 12px;
+}
+.loop-home-actions .btn.loop-home-signin:hover { background: rgba(91,76,240,.07); }
+/* On narrow displays, keep the two main actions together and move Sign in beneath. */
+@media (max-width: 820px) {
+  .loop-home-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .loop-home-actions .btn.loop-home-create,
+  .loop-home-actions .btn.loop-home-demo { min-height: 62px; }
+  .loop-home-actions .btn.loop-home-signin { grid-column: 1 / -1; min-height: 42px; }
+}
+@media (max-width: 390px) {
+  .loop-home-actions .btn { font-size: 13px; padding-inline: 9px; }
+}
+</style><div class="actions loop-home-actions"><a class="btn loop-home-create" href="#/auth?signup">Create your digital card →</a><a class="btn loop-home-demo" href="#/demo">Explore the demo →</a><a class="btn loop-home-signin" href="#/auth">Sign in →</a></div></div><div class="hero-art hero-phone"><img src="hero-phone-demo.png" alt="Phone displaying a sample the Loop card alongside QR sharing" class="hero-phone-image"></div></section><section class="section"><h2>Everything you need to connect</h2><p>Fast to create, delightful to share, effortless to save.</p><div class="feature-grid">${feature('▦','Instant QR sharing','Show your QR code. Anyone can scan it with their phone camera.')}${feature('↗','Share anywhere','Use your phone’s native share menu for supported apps and nearby sharing.')}${feature('⇄','Two-way exchange','Visitors share their details with you, even if they have no account.')}${feature('◉','Beautiful profiles','Your photo, contact links, bio and professional identity in one place.')}${feature('✎','Update anytime','Edit your details. Your permanent card link stays the same.')}${feature('▤','Save to contacts','Recipients can download a contact file for their phone.')}</div></section></main>`)}
 const demo={full_name:'John Smith',title:'RN, BSN',company:'Example Medical Center',bio:'Registered nurse • Patient care and professional networking',email:'john.smith@example.com',phone:'+1 202-555-0147',website:'',linkedin:'https://www.linkedin.com/',username:'demo',photo_url:''};
 const visibleCard=p=>({...p,email:p.show_email===false?'':p.email,phone:p.show_phone===false?'':p.phone});
 function emailContactLink(p){
