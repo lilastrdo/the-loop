@@ -35,17 +35,22 @@ const MY_QR_ROUTE='/my-qr';
 const MY_QR_PREFIX='/my-qr/u/';
 const MY_QR_LINK=username=>siteRoot()+'#'+MY_QR_PREFIX+encodeURIComponent(username);
 const MY_QR_LAST_KEY='loop-qr-shortcut-username';
-const MY_QR_INSTALLED_KEY='loop-qr-installed-username'; // Only set when a user taps Add to Home Screen.
+const MY_QR_INSTALLED_KEY='loop-qr-installed-username'; // Set when a user starts the QR shortcut or app installation.
 const MY_QR_INSTALL_NAME='My Digital Card-the Loop';
 const defaultDocumentTitle=document.title;
-const isAndroidChrome=()=>/Android/i.test(navigator.userAgent||'')&&/Chrome\//i.test(navigator.userAgent||'')&&!/EdgA|SamsungBrowser|OPR\//i.test(navigator.userAgent||'');
+const isIOSDevice=()=>/iPhone|iPad|iPod/i.test(navigator.userAgent||'')||(/Macintosh/i.test(navigator.userAgent||'')&&navigator.maxTouchPoints>1);
+const isAndroidDevice=()=>/Android/i.test(navigator.userAgent||'');
+const isMobileDevice=()=>isIOSDevice()||isAndroidDevice();
+const isAndroidChrome=()=>isAndroidDevice()&&/Chrome\//i.test(navigator.userAgent||'')&&!/EdgA|SamsungBrowser|OPR\//i.test(navigator.userAgent||'');
+const isDesktopChromium=()=>!isMobileDevice()&&/(Chrome\/|Chromium\/|Edg\/)/i.test(navigator.userAgent||'')&&!/(OPR\/|Firefox\/)/i.test(navigator.userAgent||'');
+const canPromptQuickQrInstall=()=>isAndroidChrome()||isDesktopChromium();
 let deferredQuickQrPrompt=null;
-// Only use Chrome's install prompt for this dedicated QR web app.
-// The manifest opens /#/my-qr, which resolves the public username previously
-// selected on THIS browser (saved below), without retaining any login token.
+// A supported Android or desktop Chromium browser may offer a native install prompt.
+// The dedicated QR manifest starts the public QR app without a login token.
+// The selected username is saved locally for the fixed start route to restore.
 window.addEventListener('beforeinstallprompt',event=>{
   const availableManifests=[...document.querySelectorAll('link[rel=manifest]')];
-  if(!isAndroidChrome()||!location.hash.startsWith('#'+MY_QR_PREFIX)||availableManifests.length!==1||!availableManifests[0].dataset.loopQuickQrManifest)return;
+  if(!canPromptQuickQrInstall()||!location.hash.startsWith('#'+MY_QR_PREFIX)||availableManifests.length!==1||!availableManifests[0].dataset.loopQuickQrManifest)return;
   event.preventDefault();
   deferredQuickQrPrompt=event;
 });
@@ -53,9 +58,9 @@ window.addEventListener('appinstalled',()=>{deferredQuickQrPrompt=null;});
 function updateQuickQrInstallMetadata(enabled){
   document.title=enabled?MY_QR_INSTALL_NAME:defaultDocumentTitle;
   let manifest=document.querySelector('link[data-loop-quick-qr-manifest]');
-  // iPhone users add the exact open page from Safari's Share menu. Do not put
-  // a generic PWA start_url in their way. Only offer a manifest to Android Chrome.
-  if(enabled&&isAndroidChrome()){
+  // iOS Safari shortcuts preserve the exact visible URL, with no PWA start_url.
+  // Chromium on Android and desktop can instead offer an installable QR app.
+  if(enabled&&canPromptQuickQrInstall()){
     if(!manifest){manifest=document.createElement('link');manifest.rel='manifest';manifest.dataset.loopQuickQrManifest='1';document.head.appendChild(manifest);}
     manifest.href=siteRoot()+'loop-qr.webmanifest';
   }else{
@@ -275,10 +280,10 @@ async function myQuickQrPage(username=''){
         <div aria-hidden="true" style="flex:0 0 45px;width:45px;height:45px;border-radius:13px;background:#f0edff;color:#4f35d5;display:grid;place-items:center;font-size:25px">▦</div>
         <div style="min-width:0">
           <h2 style="font-size:19px;margin:2px 0 7px">My Digital Business Card</h2>
-          <p class="muted" style="font-size:14px;line-height:1.6">Add your personal Loop QR shortcut to your phone for instant access, without logging in.</p>
+          <p class="muted" style="font-size:14px;line-height:1.6">Add your personal Loop QR shortcut to your ${isMobileDevice()?'phone or tablet':'computer'} for instant access, without logging in.</p>
         </div>
       </div>
-      <button type="button" class="btn block" id="my-qr-install" aria-haspopup="dialog" aria-controls="my-qr-install-dialog" style="margin-top:16px;min-height:51px;background:#4f35d5;border-color:#4f35d5">⌂ Add to Home Screen</button>
+      <button type="button" class="btn block" id="my-qr-install" aria-haspopup="dialog" aria-controls="my-qr-install-dialog" style="margin-top:16px;min-height:51px;background:#4f35d5;border-color:#4f35d5">${isMobileDevice()?'⌂ Add to Home Screen':'▣ Install on Computer'}</button>
       <p class="hint" style="margin-top:10px;text-align:center">Quick setup · No app download required</p>
     </section>
     <style>
@@ -287,12 +292,12 @@ async function myQuickQrPage(username=''){
     </style>
     <dialog id="my-qr-install-dialog" aria-labelledby="my-qr-guide-heading" aria-modal="true">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
-        <h2 id="my-qr-guide-heading" style="font-size:20px;margin:0">Add to Home Screen</h2>
+        <h2 id="my-qr-guide-heading" style="font-size:20px;margin:0">${isMobileDevice()?'Add to Home Screen':'Install on Computer'}</h2>
         <button type="button" id="my-qr-guide-close" class="btn ghost small" aria-label="Close shortcut instructions" style="min-width:38px;padding:6px">✕</button>
       </div>
-      <p class="muted" style="font-size:14px;line-height:1.6;margin-bottom:14px">Keep this personal QR page open. Your shortcut will be named <strong>My Digital Card-the Loop</strong>.</p>
+      <p class="muted" style="font-size:14px;line-height:1.6;margin-bottom:14px">Keep this personal QR page open. Name your shortcut <strong>${esc(MY_QR_INSTALL_NAME)}</strong> when prompted.</p>
       <div id="my-qr-guide-steps" style="font-size:14px;line-height:1.8;padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--bg)"></div>
-      <p class="hint" style="margin-top:12px">If offered both choices, select <strong>Create shortcut</strong> to preserve your personal QR link.</p>
+      <p class="hint" style="margin-top:12px">${isMobileDevice()?'If offered both choices, select <strong>Create shortcut</strong> to pin this exact personal QR link.':'For the most reliable direct link, create a shortcut to this exact QR page. Some browsers can also install it as an app.'}</p>
       <button type="button" class="btn secondary block" id="my-qr-copy-shortcut" style="margin-top:16px">Copy personal shortcut link</button>
       <button type="button" class="btn block" id="my-qr-guide-done" style="margin-top:9px">Done</button>
     </dialog>
@@ -312,31 +317,42 @@ async function myQuickQrPage(username=''){
   const showManualQrInstallSteps=()=>{
     const steps=document.getElementById('my-qr-guide-steps');
     const ua=navigator.userAgent||'';
-    const isiOS=/iPhone|iPad|iPod/i.test(ua)||(/Macintosh/i.test(ua)&&navigator.maxTouchPoints>1);
-    const isAndroid=/Android/i.test(ua);
-    if(isAndroid){
-      steps.innerHTML='<strong>Android · Chrome</strong><br>1. Keep this personal QR page open.<br>2. Tap Chrome’s <strong>⋮ menu</strong> (top right) → <strong>Install and create shortcut</strong>.<br>3. Choose <strong>Create shortcut</strong> rather than Install (if both are offered), set its name to <strong>My Digital Card-the Loop</strong>, then tap <strong>Add</strong>.<br><br><small>This method pins this exact public QR address. An automatic install prompt only appears when Chrome makes it available.</small>';
-    }else if(isiOS){
-      steps.innerHTML='<strong>iPhone · Safari</strong><br>1. Open this personal QR page in <strong>Safari</strong> (if needed, copy its shortcut link below).<br>2. Tap <strong>Share</strong> (or Page Menu → Share).<br>3. Choose <strong>Add to Home Screen</strong>.<br>4. Name it <strong>My Digital Card-the Loop</strong> and tap <strong>Add</strong>.<br><br><small>If there is an “Open as Web App” switch, you can turn it off to pin the exact personal page as a regular Safari shortcut.</small>';
+    const isMac=/Macintosh|Mac OS X/i.test(ua)&&!isIOSDevice();
+    const isEdge=/Edg\//i.test(ua);
+    const isFirefox=/Firefox\//i.test(ua);
+    const isSafari=/Safari\//i.test(ua)&&!/(Chrome\/|Chromium\/|Edg\/|OPR\/)/i.test(ua);
+    const name='<strong>'+esc(MY_QR_INSTALL_NAME)+'</strong>';
+    if(isAndroidDevice()){
+      steps.innerHTML='<strong>Android · Chrome</strong><br>1. Keep this personal QR page open in Chrome.<br>2. Tap <strong>⋮</strong> → <strong>Add to Home screen</strong> (menu labels may vary).<br>3. If offered a choice, select <strong>Create shortcut</strong> to preserve this exact link.<br>4. Name it '+name+' and tap <strong>Add</strong>.';
+    }else if(isIOSDevice()){
+      steps.innerHTML='<strong>iPhone / iPad · Safari</strong><br>1. Open this personal QR page in <strong>Safari</strong>.<br>2. Tap <strong>Share</strong> → <strong>Add to Home Screen</strong>.<br>3. Name it '+name+' and tap <strong>Add</strong>.<br><br><small>To keep the exact QR page as a regular Safari shortcut, turn off “Open as Web App” if offered.</small>';
+    }else if(isMac&&isSafari){
+      steps.innerHTML='<strong>Mac · Safari</strong><br>1. Keep this personal QR page open in Safari.<br>2. From the menu bar, choose <strong>File → Add to Dock</strong> (macOS Sonoma or later).<br>3. Name it '+name+' and select <strong>Add</strong>.<br><br><small>If Add to Dock is unavailable, bookmark this exact page instead.</small>';
+    }else if(isEdge){
+      steps.innerHTML='<strong>Computer · Microsoft Edge</strong><br>1. Keep this personal QR page open in Edge.<br>2. Open <strong>⋯ → Apps → Install this site as an app</strong> (on some versions: More tools → Apps).<br>3. Confirm the name '+name+' and select <strong>Install</strong>.<br>4. Choose a desktop or taskbar shortcut if offered.<br><br><small>The installed QR app uses the card selected on this browser. To pin the exact URL instead, save this page as a browser shortcut.</small>';
+    }else if(isDesktopChromium()){
+      steps.innerHTML='<strong>Computer · Chrome</strong><br>1. Keep this personal QR page open in Chrome.<br>2. Open <strong>⋮ → Cast, save, and share → Create shortcut</strong> (the menu wording may vary).<br>3. Name it '+name+' and click <strong>Create</strong>.<br>4. If available, check <strong>Open as window</strong> for an app-like experience.<br><br><small>This shortcut preserves your exact personal QR address. If Chrome offers Install app instead, that also works with the card saved on this browser.</small>';
+    }else if(isFirefox){
+      steps.innerHTML='<strong>Computer · Firefox</strong><br>1. Keep your personal QR page open.<br>2. Save it as a bookmark with <strong>'+(isMac?'⌘ + D':'Ctrl + D')+'</strong> and name it '+name+'.<br>3. For a desktop shortcut, drag the site icon from the address bar to your desktop if your operating system supports it.<br><br><small>Firefox desktop does not offer the same web-app installation prompt as Chrome or Edge.</small>';
     }else{
-      steps.innerHTML='<strong>Android · Chrome:</strong> ⋮ menu → Install and create shortcut → Create shortcut → Add.<br><br><strong>iPhone · Safari:</strong> Share → Add to Home Screen → name it My Digital Card-the Loop → Add.';
+      steps.innerHTML='<strong>Computer · Other browser</strong><br>1. Keep this personal QR page open.<br>2. Use the browser’s <strong>Create shortcut</strong>, <strong>Add to Dock</strong>, or <strong>Bookmark</strong> command, if available.<br>3. Name it '+name+'.<br><br><small>Use “Copy personal shortcut link” below if you need to open the exact QR page in another browser.</small>';
     }
     if(typeof myQrDialog.showModal==='function')myQrDialog.showModal();
     else myQrDialog.setAttribute('open','');
   };
   document.getElementById('my-qr-install').onclick=()=>{
-    // The prompt can only be used during a real click and if Chrome made it
-    // available. It installs /#/my-qr, which reads the selected public username
-    // saved above. Without a prompt, use the exact-link bookmark instructions.
+    // Native install is only possible in supported browsers after an install event.
+    // The manifest opens the generic QR app, which restores this browser's saved
+    // public username. Without a prompt, offer the exact-link shortcut steps.
     try{localStorage.setItem(MY_QR_INSTALLED_KEY,p.username);}catch{}
     const usableManifest=document.querySelectorAll('link[rel=manifest]').length===1&&!!document.querySelector('link[data-loop-quick-qr-manifest]');
-    if(deferredQuickQrPrompt&&isAndroidChrome()&&usableManifest){
+    if(deferredQuickQrPrompt&&canPromptQuickQrInstall()&&usableManifest){
       const prompt=deferredQuickQrPrompt;
       deferredQuickQrPrompt=null;
       try{
         prompt.prompt();
         Promise.resolve(prompt.userChoice).then(choice=>{
-          if(choice?.outcome==='dismissed')announce('Installation cancelled. Use the browser menu to create a shortcut anytime.');
+          if(choice?.outcome==='dismissed')announce('Installation cancelled. You can still create a shortcut from your browser menu.');
         }).catch(()=>{});
         return;
       }catch(_error){/* Some browsers decline the prompt: use safe manual fallback. */}
