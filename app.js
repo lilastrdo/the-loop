@@ -1362,7 +1362,7 @@ function initLoopHelp(){
   host.innerHTML=`<style>
 #loop-help-root { --loop-help-bg:#ffffff; --loop-help-ink:#182335; --loop-help-sub:#526178; --loop-help-field:#f7f9fc; --loop-help-border:#d9e1ee; font-family:inherit; }
 html[data-mode="dark"] #loop-help-root { --loop-help-bg:#1f2b3e; --loop-help-ink:#f8fafc; --loop-help-sub:#acbad1; --loop-help-field:#172238; --loop-help-border:#43536b; }
-#loop-help-open { position:fixed;right:19px;bottom:18px;z-index:3900;border:1px solid #7c70ee;border-radius:100px;background:#5b4cf0;color:#fff;padding:13px 18px;box-shadow:0 10px 26px #101a3560;font:600 14px system-ui,sans-serif;cursor:pointer;display:flex;gap:8px;align-items:center; }
+#loop-help-open { position:fixed;right:19px;bottom:18px;z-index:3900;touch-action:none;user-select:none;-webkit-user-select:none;border:1px solid #7c70ee;border-radius:100px;background:#5b4cf0;color:#fff;padding:13px 18px;box-shadow:0 10px 26px #101a3560;font:600 14px system-ui,sans-serif;cursor:pointer;display:flex;gap:8px;align-items:center; }
 #loop-help-panel { position:fixed;right:16px;bottom:78px;z-index:3901;width:min(390px,calc(100vw - 24px));max-height:min(690px,calc(100dvh - 110px));display:flex;flex-direction:column;background:var(--loop-help-bg);color:var(--loop-help-ink);border:1px solid var(--loop-help-border);border-radius:17px;box-shadow:0 22px 70px #0006;overflow:hidden; }
 #loop-help-panel[hidden],#loop-help-root [hidden] { display:none !important; }
 #loop-help-panel * { box-sizing:border-box; }
@@ -1389,9 +1389,9 @@ html[data-mode="dark"] #loop-help-root { --loop-help-bg:#1f2b3e; --loop-help-ink
 #loop-help-prompt-list {display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px;}
 #loop-help-prompt-list button {font-size:11px;border:1px solid var(--loop-help-border);padding:7px 8px;color:var(--loop-help-ink);background:var(--loop-help-bg);border-radius:18px;cursor:pointer;}
 #loop-help-talk-person {font-size:12px;color:var(--loop-help-ink);background:var(--loop-help-field);border:1px solid var(--loop-help-border);border-radius:9px;padding:9px 12px;cursor:pointer;align-self:flex-start;}
-@media (max-width:540px){#loop-help-open{right:12px;bottom:12px;}#loop-help-panel{right:8px;bottom:64px;width:calc(100vw - 16px);max-height:calc(100dvh - 85px)}#loop-help-messages{height:clamp(170px,31dvh,240px)} }
+@media (max-width:540px){#loop-help-open:not([data-user-positioned]){right:12px;bottom:12px;}#loop-help-panel{right:8px;bottom:64px;width:calc(100vw - 16px);max-height:calc(100dvh - 85px)}#loop-help-messages{height:clamp(170px,31dvh,240px)} }
   </style>
-  <button id="loop-help-open" type="button" aria-controls="loop-help-panel" aria-expanded="false">◉ Help & Contact</button>
+  <button id="loop-help-open" type="button" aria-controls="loop-help-panel" aria-expanded="false" aria-label="Help and Contact. Tap to open or drag to move" title="Tap for help or drag to move"><span aria-hidden="true" style="font-size:17px;opacity:.82">⠿</span> Help & Contact</button>
   <section id="loop-help-panel" role="dialog" aria-label="Loop Help and Contact Us" aria-modal="false" hidden>
     <div id="loop-help-head"><div><strong>Loop Help</strong><p style="font-size:11px;color:#cad7e9;margin-top:2px">Instant answers & support</p></div><button id="loop-help-close" type="button" aria-label="Close help">✕</button></div>
     <div id="loop-help-tabs" role="tablist" aria-label="Help sections"><button id="loop-help-chat-tab" type="button" role="tab" aria-controls="loop-help-chat-view" aria-selected="true">Help Center</button><button id="loop-help-contact-tab" type="button" role="tab" aria-controls="loop-help-contact-view" aria-selected="false">Contact Us</button></div>
@@ -1496,12 +1496,103 @@ html[data-mode="dark"] #loop-help-root { --loop-help-bg:#1f2b3e; --loop-help-ink
     chatTab.setAttribute('aria-selected',String(chat));contactTab.setAttribute('aria-selected',String(!chat));
     if(!chat)renderSecurity();
   }
+  // Keep the floating launcher movable without turning a drag into an accidental click.
+  // Only the public button position is stored; never profile data or support messages.
+  const launcherPositionKey='loop-help-launcher-position-v1';
+  const edge=12;
+  const clamp=(n,min,max)=>Math.min(Math.max(n,min),Math.max(min,max));
+  let dragging=null, wasDragged=false, suppressTouchClickUntil=0;
+  function setLauncherPosition(x,y){
+    const width=opener.offsetWidth, height=opener.offsetHeight;
+    const left=clamp(x,edge,window.innerWidth-width-edge);
+    const top=clamp(y,edge,window.innerHeight-height-edge);
+    opener.style.left=left+'px';opener.style.top=top+'px';
+    opener.style.right='auto';opener.style.bottom='auto';
+    opener.dataset.userPositioned='1';
+    if(!panel.hidden)positionHelpPanel();
+  }
+  function saveLauncherPosition(){
+    try{
+      const rect=opener.getBoundingClientRect();
+      const availableX=Math.max(1,window.innerWidth-rect.width-2*edge);
+      const availableY=Math.max(1,window.innerHeight-rect.height-2*edge);
+      localStorage.setItem(launcherPositionKey,JSON.stringify({
+        x:clamp((rect.left-edge)/availableX,0,1),
+        y:clamp((rect.top-edge)/availableY,0,1)
+      }));
+    }catch{}
+  }
+  function restoreLauncherPosition(){
+    try{
+      const saved=JSON.parse(localStorage.getItem(launcherPositionKey)||'null');
+      if(!saved||!Number.isFinite(saved.x)||!Number.isFinite(saved.y))return;
+      const availableX=Math.max(0,window.innerWidth-opener.offsetWidth-2*edge);
+      const availableY=Math.max(0,window.innerHeight-opener.offsetHeight-2*edge);
+      setLauncherPosition(edge+clamp(saved.x,0,1)*availableX,edge+clamp(saved.y,0,1)*availableY);
+    }catch{}
+  }
+  function positionHelpPanel(){
+    if(panel.hidden)return;
+    const anchor=opener.getBoundingClientRect();
+    const width=panel.offsetWidth, height=panel.offsetHeight, gap=10;
+    // Place the help window above the button when possible, otherwise below.
+    const above=anchor.top-height-gap;
+    const below=anchor.bottom+gap;
+    let top=above>=edge?above:(below+height<=window.innerHeight-edge?below:clamp(above,edge,window.innerHeight-height-edge));
+    const alignedLeft=anchor.left+anchor.width/2<window.innerWidth/2?anchor.left:anchor.right-width;
+    const left=clamp(alignedLeft,edge,window.innerWidth-width-edge);
+    panel.style.left=left+'px';panel.style.top=top+'px';
+    panel.style.right='auto';panel.style.bottom='auto';
+  }
+  opener.addEventListener('pointerdown',e=>{
+    if(!e.isPrimary||(e.pointerType==='mouse'&&e.button!==0))return;
+    const rect=opener.getBoundingClientRect();
+    dragging={id:e.pointerId,x:e.clientX,y:e.clientY,left:rect.left,top:rect.top,moved:false};
+    try{opener.setPointerCapture(e.pointerId);}catch{}
+  });
+  opener.addEventListener('pointermove',e=>{
+    if(!dragging||e.pointerId!==dragging.id)return;
+    const dx=e.clientX-dragging.x, dy=e.clientY-dragging.y;
+    if(!dragging.moved&&Math.hypot(dx,dy)<7)return;
+    dragging.moved=true;
+    setLauncherPosition(dragging.left+dx,dragging.top+dy);
+  });
+  function finishLauncherDrag(e){
+    if(!dragging||e.pointerId!==dragging.id)return;
+    const moved=dragging.moved;
+    dragging=null;
+    if(opener.hasPointerCapture?.(e.pointerId))try{opener.releasePointerCapture(e.pointerId);}catch{}
+    if(moved){
+      wasDragged=true;saveLauncherPosition();
+      // A drag does not always produce a click (notably on touchscreens).
+      // Only suppress the click generated by this gesture, not the next real tap.
+      setTimeout(()=>{wasDragged=false;},0);
+    }else if(e.type==='pointerup'&&e.pointerType==='touch'){
+      // Handle a genuine tap directly. Some mobile browsers suppress the
+      // synthesized click after a drag, even for the user's following tap.
+      suppressTouchClickUntil=performance.now()+1000;
+      panel.hidden?open('chat'):close();
+    }
+  }
+  opener.addEventListener('pointerup',finishLauncherDrag);
+  opener.addEventListener('pointercancel',finishLauncherDrag);
+  window.addEventListener('resize',()=>{
+    // Preserve the proportional location when rotating a phone or resizing a window.
+    if(opener.dataset.userPositioned)restoreLauncherPosition();
+    if(!panel.hidden)positionHelpPanel();
+  });
+  restoreLauncherPosition();
   function open(kind='chat'){
     panel.hidden=false;opener.setAttribute('aria-expanded','true');
+    positionHelpPanel();
     setTab(kind);(kind==='contact'?host.querySelector('#loop-help-contact-form input[name=name]'):host.querySelector('#loop-help-question')).focus();
   }
   function close(){panel.hidden=true;opener.setAttribute('aria-expanded','false');opener.focus();}
-  opener.onclick=()=>panel.hidden?open('chat'):close();
+  opener.onclick=e=>{
+    if(e.pointerType==='touch'&&performance.now()<suppressTouchClickUntil)return;
+    if(wasDragged){wasDragged=false;return;}
+    panel.hidden?open('chat'):close();
+  };
   host.querySelector('#loop-help-close').onclick=close;
   chatTab.onclick=()=>setTab('chat');contactTab.onclick=()=>setTab('contact');
   host.querySelector('#loop-help-talk-person').onclick=()=>setTab('contact');
