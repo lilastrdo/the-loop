@@ -190,14 +190,26 @@ html[data-mode="dark"] .loop-home-actions .btn.loop-home-demo:hover {
 }
 </style><div class="actions loop-home-actions"><a class="btn loop-home-create" href="#/auth?signup">Create your digital card →</a><a class="btn loop-home-demo" href="#/demo">Explore the demo →</a><a class="btn loop-home-signin" href="#/auth">Sign in →</a></div></div><div class="hero-art hero-phone"><img src="hero-phone-demo.png" alt="Phone displaying a sample the Loop card alongside QR sharing" class="hero-phone-image"></div></section><section class="section"><h2>Everything you need to connect</h2><p>Fast to create, delightful to share, effortless to save.</p><div class="feature-grid">${feature('▦','Instant QR sharing','Show your QR code. Anyone can scan it with their phone camera.')}${feature('↗','Share anywhere','Use your phone’s native share menu for supported apps and nearby sharing.')}${feature('⇄','Two-way exchange','Visitors share their details with you, even if they have no account.')}${feature('◉','Beautiful profiles','Your photo, contact links, bio and professional identity in one place.')}${feature('✎','Update anytime','Edit your details. Your permanent card link stays the same.')}${feature('▤','Save to contacts','Recipients can download a contact file for their phone.')}</div></section></main>`)}
 const demo={full_name:'John Smith',title:'RN, BSN',company:'Example Medical Center',bio:'Registered nurse • Patient care and professional networking',email:'john.smith@example.com',phone:'+1 202-555-0147',website:'',linkedin:'https://www.linkedin.com/',username:'demo',photo_url:''};
-const visibleCard=p=>({...p,email:p.show_email===false?'':p.email,phone:p.show_phone===false?'':p.phone});
+// Existing public email/work-phone toggles are retained. New personal fields are opt-in only.
+const visibleCard=p=>({
+  ...p,
+  email:p.show_email===false?'':p.email,
+  phone:p.show_phone===false?'':p.phone,
+  personal_phone:p.show_personal_phone===true?p.personal_phone:'',
+  additional_phone:p.show_additional_phone===true?p.additional_phone:'',
+  work_address:p.show_work_address===true?p.work_address:''
+});
 function emailContactLink(p){
   const firstName=String(p.full_name||'there').trim().split(/\s+/)[0];
   const subject='Connecting Through the Loop';
   const body=`Hi ${firstName},\n\nI came across your digital business card on the Loop and wanted to reach out.\n\nBest regards,`;
   return `mailto:${encodeURIComponent(p.email||'')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
-function card(p){p=visibleCard(p);return `<article class="profile-view theme-${esc(THEMES.includes(p.theme)?p.theme:"violet")}"><div class="cover"></div><div class="identity">${avatar(p)}<h2>${esc(p.full_name||'Unnamed profile')}</h2><div class="title">${esc(p.title||'')}</div>${p.company?`<p class="muted" style="margin-top:6px">${esc(p.company)}</p>`:''}<p class="bio">${esc(p.bio||'')}</p><div class="social">${p.email?`<a href="${esc(emailContactLink(p))}">✉ Email</a>`:''}${p.phone?`<a href="tel:${esc(p.phone.replace(/[^+\d]/g,''))}">☎ Phone</a>`:''}${safeUrl(p.linkedin)?`<a href="${esc(safeUrl(p.linkedin))}" target="_blank" rel="noopener noreferrer">in LinkedIn</a>`:''}${safeUrl(p.website)?`<a href="${esc(safeUrl(p.website))}" target="_blank" rel="noopener noreferrer">↗ Website</a>`:''}</div><button class="btn block" data-action="save-contact">↓ Save Contact</button><button class="btn secondary block" data-action="native-share">↗ Share This Card</button></div></article>`}
+function card(p){
+  p=visibleCard(p);
+  const callLink=(phone,label)=>phone?`<a href="tel:${esc(String(phone).replace(/[^+\d]/g,''))}">☎ ${label}</a>`:'';
+  return `<article class="profile-view theme-${esc(THEMES.includes(p.theme)?p.theme:'violet')}"><div class="cover"></div><div class="identity">${avatar(p)}<h2>${esc(p.full_name||'Unnamed profile')}</h2><div class="title">${esc(p.title||'')}</div>${p.company?`<p class="muted" style="margin-top:6px">${esc(p.company)}</p>`:''}<p class="bio">${esc(p.bio||'')}</p><div class="social">${p.email?`<a href="${esc(emailContactLink(p))}">✉ Work Email</a>`:''}${callLink(p.phone,'Work Phone')}${callLink(p.personal_phone,'Personal Phone')}${callLink(p.additional_phone,'Other Phone')}${safeUrl(p.linkedin)?`<a href="${esc(safeUrl(p.linkedin))}" target="_blank" rel="noopener noreferrer">in LinkedIn</a>`:''}${safeUrl(p.website)?`<a href="${esc(safeUrl(p.website))}" target="_blank" rel="noopener noreferrer">↗ Website</a>`:''}</div>${p.work_address?`<p class="muted" style="margin:12px 0 0;overflow-wrap:anywhere">⌖ Work address: ${esc(p.work_address)}</p>`:''}<button class="btn block" data-action="save-contact">↓ Save Contact</button><button class="btn secondary block" data-action="native-share">↗ Share This Card</button></div></article>`;
+}
 function vcard(p){
   p=visibleCard(p);
   // Build a standard vCard 3.0 for import into Android/iOS Contacts.
@@ -210,8 +222,11 @@ function vcard(p){
     'N:'+clean(surname)+';'+clean(given)+';;;'];
   if(p.company)lines.push('ORG:'+clean(p.company));
   if(p.title)lines.push('TITLE:'+clean(p.title));
-  if(p.email)lines.push('EMAIL;TYPE=INTERNET:'+clean(p.email));
-  if(p.phone)lines.push('TEL;TYPE=CELL:'+clean(p.phone));
+  if(p.email)lines.push('EMAIL;TYPE=INTERNET,WORK:'+clean(p.email));
+  if(p.phone)lines.push('TEL;TYPE=WORK,VOICE:'+clean(p.phone));
+  if(p.personal_phone)lines.push('TEL;TYPE=CELL:'+clean(p.personal_phone));
+  if(p.additional_phone)lines.push('TEL;TYPE=VOICE:'+clean(p.additional_phone));
+  if(p.work_address)lines.push('ADR;TYPE=WORK:;;'+clean(p.work_address)+';;;;');
   if(safeUrl(p.website))lines.push('URL:'+safeUrl(p.website));
   if(safeUrl(p.linkedin))lines.push('URL;TYPE=LinkedIn:'+safeUrl(p.linkedin));
   if(p.username&&p.username!=='demo')lines.push('URL;TYPE=theLoop:'+urlFor(p.username));
@@ -467,7 +482,25 @@ function icebreakerSection(){return `<section class="loop-icebreaker" style="bor
 function wireIcebreaker(){const q=document.getElementById('icebreaker-question'),hidden=document.getElementById('icebreaker-question-value'),button=document.getElementById('icebreaker-shuffle'),answer=document.getElementById('icebreaker-answer');if(!q||!hidden||!button)return;let current=-1;const choose=()=>{let next=Math.floor(Math.random()*ICEBREAKER_QUESTIONS.length);if(ICEBREAKER_QUESTIONS.length>1&&next===current)next=(next+1)%ICEBREAKER_QUESTIONS.length;current=next;q.textContent=ICEBREAKER_QUESTIONS[current];hidden.value=ICEBREAKER_QUESTIONS[current];if(answer)answer.value=''};button.onclick=choose;choose()}
 function exchangeForm(isDemo){return `<form id="exchange-form" class="form"><div class="field"><label for="v-name">Your full name *</label><input id="v-name" name="name" maxlength="100" required autocomplete="name"></div><div class="field"><label for="v-email">Email *</label><input id="v-email" name="email" type="email" maxlength="200" required autocomplete="email"></div><div class="field"><label for="v-phone">Phone (optional)</label><input id="v-phone" name="phone" type="tel" maxlength="40" autocomplete="tel"></div><div class="field"><label for="v-company">Company (optional)</label><input id="v-company" name="company" maxlength="120" autocomplete="organization"></div><div class="field"><label for="v-message">Message (optional)</label><textarea id="v-message" name="message" maxlength="500" placeholder="Great meeting you at..."></textarea></div>${icebreakerSection()}<label class="check"><input name="consent" type="checkbox" required><span>I agree to share these details with the card owner so they can contact me. The owner will receive my submission.</span></label>${!isDemo&&cfg.turnstileSiteKey?`<div class="cf-turnstile" data-sitekey="${esc(cfg.turnstileSiteKey)}"></div>`:''}<button class="btn block" type="submit">⇄ Exchange information</button><div id="exchange-feedback" aria-live="polite"></div></form>`}
 function wireExchange(p,isDemo){wireIcebreaker();const form=document.getElementById('exchange-form');if(!form)return;form.onsubmit=async(e)=>{e.preventDefault();const msg=document.getElementById('exchange-feedback'),d=new FormData(form),btn=form.querySelector('button[type=submit]');if(!form.reportValidity())return;if(isDemo){msg.innerHTML='<div class="success">Demo complete! In the live app, this would securely send your details to the card owner.</div>';form.reset();wireIcebreaker();return}if(!configured){announce('Set up Supabase first');return}btn.disabled=true;msg.textContent='Sending…';try{const token=window.turnstile?.getResponse()||'';const response=await fetch(cfg.supabaseUrl.replace(/\/$/,'')+'/functions/v1/exchange-contact',{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabaseAnonKey},body:JSON.stringify({username:p.username,name:d.get('name'),email:d.get('email'),phone:d.get('phone'),company:d.get('company'),message:d.get('message'),icebreaker_question:String(d.get('icebreaker_answer')||'').trim()?d.get('icebreaker_question'):'',icebreaker_answer:String(d.get('icebreaker_answer')||'').trim(),consent:d.get('consent')==='on',turnstileToken:token})});const json=await response.json().catch(()=>({}));if(!response.ok)throw Error(json.error||'Could not send contact information');msg.innerHTML='<div class="success">Details shared successfully! You can also save this person’s contact above.</div>';form.reset();wireIcebreaker();window.turnstile?.reset()}catch(err){msg.innerHTML=`<div class="error">${esc(err.message)}</div>`}finally{btn.disabled=false}}}
-async function publicPage(username){render('<div class="loader">Loading card…</div>');if(!configured){render(`<main class="center-wrap"><div class="panel">Connect Supabase in <code>config.js</code> to open real public cards. <a href="#/demo">View demo →</a></div></main>`);return}const {data,error}=await db.from('public_cards').select('*').eq('username',username).maybeSingle();if(error||!data){render('<main class="center-wrap"><div class="panel"><h2>Card not found</h2><p class="muted">This profile does not exist or is private.</p><a class="btn" href="#/">Back home</a></div></main>');return}render(`<main class="public-wrap public-three-column">${card(data)}<div class="panel" style="margin-bottom:18px"><h3 style="margin-bottom:13px">Scan or share</h3>${qrBlock(data)}</div><div class="panel form-section"><h3>Exchange contact information</h3><p class="hint" style="margin-top:8px">Send your details to ${esc(data.full_name||'the card owner')}. No account needed.</p>${exchangeForm(false)}</div></main>`);wireCard(data);drawQR(data);wireExchange(data,false);if(cfg.turnstileSiteKey)loadTurnstile()}
+async function publicPage(username){
+  render('<div class="loader">Loading card…</div>');
+  if(!configured){render(`<main class="center-wrap"><div class="panel">Connect Supabase in <code>config.js</code> to open real public cards. <a href="#/demo">View demo →</a></div></main>`);return;}
+  const {data,error}=await db.from('public_cards').select('*').eq('username',username).maybeSingle();
+  if(error||!data){render('<main class="center-wrap"><div class="panel"><h2>Card not found</h2><p class="muted">This profile does not exist or is private.</p><a class="btn" href="#/">Back home</a></div></main>');return;}
+  // The companion view only returns optional fields when the owner opted in,
+  // and only for active published cards. An older deployment still shows its core card.
+  let extras={};
+  try{
+    const {data:extra,error:extraError}=await db.from('public_card_extras')
+      .select('personal_phone,additional_phone,work_address,show_personal_phone,show_additional_phone,show_work_address')
+      .eq('username',username).maybeSingle();
+    if(extraError)throw extraError;
+    if(extra)extras=extra;
+  }catch(e){console.warn('Optional public-card fields unavailable:',e.message);}
+  const cardData={...data,...extras};
+  render(`<main class="public-wrap public-three-column">${card(cardData)}<div class="panel" style="margin-bottom:18px"><h3 style="margin-bottom:13px">Scan or share</h3>${qrBlock(cardData)}</div><div class="panel form-section"><h3>Exchange contact information</h3><p class="hint" style="margin-top:8px">Send your details to ${esc(cardData.full_name||'the card owner')}. No account needed.</p>${exchangeForm(false)}</div></main>`);
+  wireCard(cardData);drawQR(cardData);wireExchange(cardData,false);if(cfg.turnstileSiteKey)loadTurnstile();
+}
 function loadTurnstile(){if(document.querySelector('script[data-turnstile]')){window.turnstile?.render?.('.cf-turnstile');return}const s=document.createElement('script');s.src='https://challenges.cloudflare.com/turnstile/v0/api.js';s.async=true;s.defer=true;s.dataset.turnstile='true';document.head.append(s)}
 // Shared client-side guidance; Supabase must enforce its own matching password policy.
 function loopPasswordChecks(value){return [value.length>=8,/[A-Z]/.test(value),/[a-z]/.test(value),/[0-9]/.test(value)];}
@@ -529,12 +562,80 @@ if (togglePassword && passwordInput) {
 }if(signup&&!result.data.session){box.innerHTML='<div class="success" role="status"><strong>Check your email</strong><p style="margin:8px 0">We sent a confirmation link if this email address is eligible for registration. After confirming, log in to the Loop.</p></div>';return}me=result.data.user;location.hash=afterQuickQrLogin()}}
 async function getMyProfile(){let {data,error}=await db.from('profiles').select('*').eq('id',me.id).maybeSingle();if(error)throw error;if(data)return data;const name=me.user_metadata?.full_name||'',fallback=('user'+me.id.replace(/-/g,'').slice(0,9));const {data:newData,error:insertError}=await db.from('profiles').insert({id:me.id,username:fallback,full_name:name,email:me.email||''}).select().single();if(insertError)throw insertError;return newData}
 const THEMES=['violet','ocean','emerald','sunset','rose','midnight','executive-navy','graphite','slate','forest','champagne','burgundy','ivory','steel-blue','espresso','teal-professional'];
-const fields=[['full_name','Full name','text'],['username','Unique card username','text'],['title','Job title / credentials','text'],['company','Company / organization','text'],['bio','Bio','textarea'],['email','Public contact email','email'],['phone','Public phone','tel'],['website','Website (https://...)','url'],['linkedin','LinkedIn (https://...)','url']];
+// Keep the already-published username immutable in the edit UI so links/QRs stay stable.
+// Only full name and title/credentials are required. Existing email/phone columns
+// are now clearly labelled WORK contact details and preserve their visibility controls.
+const fields=[
+ ['full_name','Full Name','text',true],
+ ['title','Job Title / Credentials','text',true],
+ ['company','Company / Organization','text',false],
+ ['email','Work Email','email',false],
+ ['phone','Work Phone Number','tel',false],
+ ['bio','Bio','textarea',false],
+ ['linkedin','LinkedIn','url',false],
+ ['personal_phone','Personal Phone Number','tel',false],
+ ['additional_phone','Additional Public Phone Number','tel',false],
+ ['work_address','Work Address','textarea',false],
+ ['website','Website','url',false]
+];
+const profileFieldPlaceholder={
+ full_name:'Enter your full name',title:'e.g. Registered Nurse, BSN, PCCN',
+ company:'Company or organization (optional)',email:'name@company.com',phone:'Work phone (optional)',
+ bio:'Tell people a little about yourself (500 characters max)',linkedin:'https://linkedin.com/in/…',
+ personal_phone:'Personal number (private by default)',additional_phone:'Another number (private by default)',
+ work_address:'Your office or workplace address',website:'https://yourwebsite.com'
+};
+function profileField(p,key){
+  const field=fields.find(([id])=>id===key);
+  const [,label,type,required]=field;
+  const max=key==='bio'?500:key==='work_address'?300:key.includes('phone')?40:300;
+  const hint=profileFieldPlaceholder[key]||'';
+  const autocomplete={full_name:'name',email:'email',phone:'tel',personal_phone:'tel',company:'organization',website:'url'}[key]||'off';
+  return `<div class="field" style="min-width:0"><label for="f-${key}">${esc(label)}${required?' <span aria-label="required" style="color:#9b89ff">*</span>':''}</label>${type==='textarea'?`<textarea id="f-${key}" name="${key}" maxlength="${max}" placeholder="${esc(hint)}" rows="${key==='bio'?3:2}" ${required?'required':''}>${esc(p[key]||'')}</textarea>`:`<input id="f-${key}" name="${key}" type="${type}" maxlength="${max}" autocomplete="${autocomplete}" placeholder="${esc(hint)}" value="${esc(p[key]||'')}" ${required?'required':''}>`}</div>`;
+}
 function themeSelector(p){return `<div class="wide theme-editor"><label>Card color theme</label><div class="theme-options">${THEMES.map(t=>`<label class="theme-pick"><input type="radio" name="theme" value="${t}" ${((p.theme||'violet')===t)?'checked':''}><span class="theme-dot theme-${t}"></span><span class="theme-name">${t.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')}</span></label>`).join('')}</div><p class="hint">Choose a color to preview it on your card.</p><div id="theme-preview">${card(p)}</div></div>`}
 function photoPicker(p){return `<div class="wide photo-editor"><label>Profile picture</label><div class="photo-actions"><button type="button" class="btn secondary" id="choose-photo">Upload photo</button><button type="button" class="btn secondary" id="take-photo">Take a photo</button><button type="button" class="btn secondary" id="edit-photo" ${p.photo_url?'':'disabled'}>Crop / edit photo</button><button type="button" class="btn ghost" id="remove-photo">Remove photo</button></div><input hidden type="file" id="photo-input" accept="image/*"><input hidden type="file" id="camera-input" accept="image/*" capture="user"><input type="hidden" id="f-photo_url" name="photo_url" value="${esc(p.photo_url||'')}"><p class="hint" id="photo-message">JPG, PNG, or WebP, up to 8 MB. Crop and adjust before uploading. Photos are stored in a public profile-photo bucket.</p><div class="photo-preview" id="photo-preview">${avatar(p)}</div><div class="crop-editor" id="crop-editor" hidden><h3>Crop your profile photo</h3><p class="hint">Drag the picture to reposition it, then adjust the zoom. The circular guide shows what your profile photo will look like.</p><div class="crop-stage" id="crop-stage"><canvas id="crop-canvas" width="320" height="320" aria-label="Crop photo preview"></canvas></div><label class="crop-zoom-label" for="crop-zoom">Zoom <input id="crop-zoom" type="range" min="1" max="3" step="0.01" value="1"></label><div class="crop-actions"><button class="btn" type="button" id="apply-crop">Apply crop</button><button class="btn secondary" type="button" id="cancel-crop">Cancel</button></div></div></div>`}
-function profileForm(p){return `<form class="profile-form" id="profile-form">${fields.map(([key,label,type])=>`<div class="field ${key==='bio'?'wide':''}"><label for="f-${key}">${label}</label>${type==='textarea'?`<textarea id="f-${key}" name="${key}" maxlength="500">${esc(p[key]||'')}</textarea>`:`<input id="f-${key}" name="${key}" type="${type}" maxlength="${key==='username'?30:300}" value="${esc(p[key]||'')}" ${key==='full_name'||key==='username'?'required':''}>`}</div>`).join('')}${photoPicker(p)}${themeSelector(p)}<label class="check wide"><input type="checkbox" name="show_email" ${p.show_email?'checked':''}><span>Show contact email on public card</span></label><label class="check wide"><input type="checkbox" name="show_phone" ${p.show_phone?'checked':''}><span>Show phone number on public card</span></label><label class="check wide"><input type="checkbox" name="published" ${p.published?'checked':''}><span>Publish my card so anyone with the link can view the information shown here.</span></label><div class="wide"><button type="submit" class="btn">Save profile</button><span id="save-message" class="hint" style="margin-left:10px"></span></div></form>`}
+function profileForm(p){
+  const professional=['full_name','title','company','email','phone'];
+  const optional=['bio','linkedin','personal_phone','additional_phone','work_address','website'];
+  const gridStyle='display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,255px),1fr));gap:16px';
+  const check=(key,text)=>`<label class="check" style="margin:5px 0"><input type="checkbox" name="${key}" ${p[key]?'checked':''}><span>${text}</span></label>`;
+  return `<form class="profile-form" id="profile-form">
+    <section class="wide" style="grid-column:1/-1">
+      <h3 style="margin-bottom:8px">Professional Information</h3>
+      <p class="hint" style="margin:0 0 18px">Only fields marked <strong>*</strong> are required. Add the rest whenever you're ready.</p>
+      <div style="${gridStyle}">${professional.map(key=>profileField(p,key)).join('')}</div>
+    </section>
+    <details class="wide" id="loop-additional-info" style="grid-column:1/-1;border:1px solid var(--line,#dbe2ea);border-radius:14px;padding:0 16px;margin:4px 0 10px">
+      <summary style="cursor:pointer;padding:17px 2px;font-weight:650;list-style:revert;">Additional Information (Optional)<span class="hint" style="display:block;font-weight:400;margin-top:4px">Personalize your card with more details</span></summary>
+      <div style="${gridStyle};padding:4px 0 20px">${optional.map(key=>profileField(p,key)).join('')}</div>
+    </details>
+    <section class="wide" style="grid-column:1/-1">${photoPicker(p)}</section>
+    <section class="wide" style="grid-column:1/-1">${themeSelector(p)}</section>
+    <section class="wide" style="grid-column:1/-1;border-top:1px solid var(--line,#dbe2ea);padding-top:18px">
+      <h3 style="margin-bottom:7px">Contact Visibility & Privacy</h3>
+      <p class="hint" style="margin:0 0 14px">Contact numbers and addresses are hidden on your public card until you choose to show them. Your public name, title and organization remain visible when your card is published.</p>
+      ${check('show_email','Show work email on my public card')}
+      ${check('show_phone','Show work phone on my public card')}
+      ${check('show_personal_phone','Show personal phone on my public card')}
+      ${check('show_additional_phone','Show additional phone on my public card')}
+      ${check('show_work_address','Show work address on my public card')}
+      <div style="margin-top:14px">${check('published','Publish my card so anyone with my link can view the details I choose to share.')}</div>
+    </section>
+    <div class="wide" style="grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:14px">
+      <button type="button" id="reset-profile" class="btn secondary">Reset</button>
+      <button type="button" id="cancel-profile" class="btn secondary">Cancel</button>
+      <button type="submit" class="btn">Save Changes</button>
+      <span id="save-message" role="status" aria-live="polite" class="hint"></span>
+    </div>
+  </form>`;
+}
 function wireProfileEditor(){
  const form=document.getElementById('profile-form'),draft={...profile},themePreview=document.getElementById('theme-preview');
+ document.getElementById('reset-profile').onclick=()=>{view='edit';showDashboard();announce('Unsaved changes reset to your last saved card.');};
+ document.getElementById('cancel-profile').onclick=()=>{view='overview';showDashboard();window.scrollTo({top:0,behavior:'smooth'});};
+ // Browser validation must expand the optional panel before focusing an invalid URL.
+ form.addEventListener('invalid',event=>{const optional=document.getElementById('loop-additional-info');if(optional?.contains(event.target))optional.open=true;},true);
  form.querySelectorAll('[name=theme]').forEach(r=>r.onchange=()=>{draft.theme=r.value;themePreview.innerHTML=card(draft)});
  const imgInput=document.getElementById('photo-input'),cameraInput=document.getElementById('camera-input');
  const editor=document.getElementById('crop-editor'),canvas=document.getElementById('crop-canvas'),ctx=canvas.getContext('2d');
@@ -574,12 +675,15 @@ function signatureParts(p, includePhoto, includeQR){
  const photo=includePhoto&&safeUrl(p.photo_url)?safeUrl(p.photo_url):'';
  const email=p.show_email&&p.email?String(p.email):'';
  const phone=p.show_phone&&p.phone?String(p.phone):'';
- const lines=[name,[title,company].filter(Boolean).join(' | '),email,phone,link,'Meet. Connect. Stay in the Loop.'].filter(Boolean);
+ const personalPhone=p.show_personal_phone&&p.personal_phone?String(p.personal_phone):'';
+ const otherPhone=p.show_additional_phone&&p.additional_phone?String(p.additional_phone):'';
+ const workAddress=p.show_work_address&&p.work_address?String(p.work_address):'';
+ const lines=[name,[title,company].filter(Boolean).join(' | '),email,phone,personalPhone,otherPhone,workAddress,link,'Meet. Connect. Stay in the Loop.'].filter(Boolean);
  const plain=lines.join('\n');
  const website=safeUrl(p.website),linkedin=safeUrl(p.linkedin);
  const qr=includeQR?document.getElementById('qr-canvas')?.toDataURL('image/png'):'';
  const image=photo?`<td style="padding:0 14px 0 0;vertical-align:top"><img src="${esc(photo)}" alt="" width="68" height="68" style="border-radius:10px;object-fit:cover;width:68px;height:68px"></td>`:'';
- const links=[email?`<a href="mailto:${esc(encodeURIComponent(email))}" style="color:#334155;text-decoration:none">${esc(email)}</a>`:'',phone?`<a href="tel:${esc(phone.replace(/[^+\d]/g,''))}" style="color:#334155;text-decoration:none">${esc(phone)}</a>`:'',website?`<a href="${esc(website)}" style="color:#334155">Website</a>`:'',linkedin?`<a href="${esc(linkedin)}" style="color:#334155">LinkedIn</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+ const links=[email?`<a href="mailto:${esc(encodeURIComponent(email))}" style="color:#334155;text-decoration:none">${esc(email)}</a>`:'',phone?`<a href="tel:${esc(phone.replace(/[^+\d]/g,''))}" style="color:#334155;text-decoration:none">${esc(phone)}</a>`:'',personalPhone?`<a href="tel:${esc(personalPhone.replace(/[^+\d]/g,''))}" style="color:#334155;text-decoration:none">${esc(personalPhone)}</a>`:'',otherPhone?`<a href="tel:${esc(otherPhone.replace(/[^+\d]/g,''))}" style="color:#334155;text-decoration:none">${esc(otherPhone)}</a>`:'',workAddress?`<span>${esc(workAddress)}</span>`:'',website?`<a href="${esc(website)}" style="color:#334155">Website</a>`:'',linkedin?`<a href="${esc(linkedin)}" style="color:#334155">LinkedIn</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
  const qrCell=qr?`<td style="padding:0 0 0 12px;vertical-align:top"><a href="${esc(link)}"><img src="${qr}" alt="Scan my digital business card" width="84" height="84" style="display:block;width:84px;height:84px"></a></td>`:'';
  const html=`<table role="presentation" cellpadding="0" cellspacing="0" style="font-family:Arial,Helvetica,sans-serif;color:#243449;border-collapse:collapse"><tr>${image}<td style="vertical-align:top"><div style="font-size:17px;font-weight:700;color:#243449">${esc(name)}</div><div style="font-size:13px;color:#475569;padding-top:3px">${esc([title,company].filter(Boolean).join(' | '))}</div>${links?`<div style="font-size:12px;padding-top:8px">${links}</div>`:''}<div style="padding-top:10px;font-size:13px"><a href="${esc(link)}" style="font-weight:700;color:#3551a2;text-decoration:underline">View my digital business card</a></div><div style="font-size:11px;color:#64748b;padding-top:7px">Meet. Connect. Stay in the Loop.</div></td>${qrCell}</tr></table>`;
  return {html,plain};
@@ -745,7 +849,7 @@ function showDashboard(){render(`<style>
   ['CARD ACTIONS', [['overview','⌂ My Account'],['edit','✎ Edit My Card'],['share','▦ Share My Digital Card'],['contacts','⇄ My Connections']]],
   ['SPECIAL FEATURES', [['qr-shortcut',isMobileDevice()?'⌂ Add My QR Code to Home Screen':'⌂ Add My QR Code to Desktop'],['wallet','▣ Add My Card to Google Wallet']]],
   ['', [['signature','✉ Create Email Signature'],['demo','↗ Explore the Demo'],['settings','⚙ Settings']]]
- ].map(([section,items])=>`${section?`<div class="loop-side-heading" aria-hidden="true">${section}</div>`:''}${items.map(([v,label],i)=>`<button ${v==='demo'?'data-open-demo':'data-view="'+v+'"'} class="${view===v?'active':''}${i===0 && section!=='CARD ACTIONS'?' loop-nav-group-start':''}">${label}${v==='contacts'?'<span class="connection-badge" data-unread-count hidden></span>':''}</button>`).join('')}`).join('')}</aside><section><div class="top-row"><div><h1>${({overview:'My Account',edit:'Edit your card',share:'Share Your Digital Business Card','qr-shortcut':isMobileDevice()?'Add My QR Code to Home Screen':'Add My QR Code to Desktop',wallet:'Add My Card to Google Wallet',signature:'Email Signature Generator',contacts:'Your connections',settings:'Settings'})[view]}</h1><p>Welcome${profile.full_name?', '+esc(profile.full_name.split(' ')[0]):''}. Your network starts here.</p></div>${profile.published?`<a href="#/u/${encodeURIComponent(profile.username)}" class="btn secondary small">View public card ↗</a>`:'<span class="hint">Card is private</span>'}</div><div id="dash-body"></div></section></main>`);document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;showDashboard()});const demoLink=document.querySelector('[data-open-demo]');if(demoLink)demoLink.onclick=()=>{location.hash='/demo';};const el=document.getElementById('dash-body');if(view==='overview'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:20px;margin-bottom:10px">Your digital identity</h2><p class="muted" style="margin-bottom:20px">Keep your card current and share it anywhere.</p>${card(profile)}</div><div class="panel"><h3 style="margin-bottom:16px">Quick share</h3>${qrBlock(profile)}<p class="hint" style="margin-top:16px">${profile.published?'Your card is public.':'Publish your card in Edit card before sharing.'}</p></div></div>`;wireCard(profile);drawQR(profile);}else if(view==='edit'){el.innerHTML=`<div class="panel"><div class="info-strip" style="margin-bottom:20px">Only publish information you're comfortable sharing publicly. Changes to your username will change your card link.</div>${profileForm(profile)}</div>`;document.getElementById('profile-form').onsubmit=saveProfile;wireProfileEditor()}else if(view==='share'){el.innerHTML=`<div class="dashboard-grid" style="grid-template-columns:minmax(0,1fr)"><div class="panel"><h2 style="font-size:19px">Your QR code</h2><p class="hint" style="margin:8px 0 20px">Let others scan your QR code to instantly view and save your contact information.</p>${qrBlock(profile)}<div class="actions"><button class="btn" data-action="native-share">↗ Share card</button><button class="btn secondary" data-action="share-by-email">✉ Email card</button><button class="btn secondary" id="share-qr-image">↗ Share QR image</button><button class="btn secondary" id="download-qr">↓ Download QR</button></div>${!profile.published?'<p class="error">Your card is currently private. Publish it in Edit card before sharing.</p>':''}</div></div><div class="panel" style="margin-top:18px"><h3 style="margin-bottom:8px">Keep Your QR Code One Tap Away</h3><p class="hint" style="margin-bottom:14px">Save your personal QR code to your Home Screen or computer desktop, so you can show it instantly without signing in.</p><a class="btn secondary" href="#/my-qr/u/${encodeURIComponent(profile.username)}" id="open-personal-my-qr" style="max-width:100%">⌂ Add My QR Code to Home Screen →</a></div><div class="panel" style="margin-top:18px"><h3 style="margin-bottom:8px">Add your card to Google Wallet</h3><p class="hint" style="margin-bottom:14px">Keep your Loop card handy on your phone. Your Wallet QR code will open your live digital card when someone scans it.</p><button type="button" class="btn secondary" id="add-to-google-wallet" ${profile.published?'':'disabled'}>▣ Add to Google Wallet</button><p id="google-wallet-status" role="status" aria-live="polite" class="hint" style="margin-top:10px"></p><p class="hint" style="margin-top:8px">Google Wallet passes can currently be saved only by approved test accounts.</p></div>`;wireCard(profile);
+ ].map(([section,items])=>`${section?`<div class="loop-side-heading" aria-hidden="true">${section}</div>`:''}${items.map(([v,label],i)=>`<button ${v==='demo'?'data-open-demo':'data-view="'+v+'"'} class="${view===v?'active':''}${i===0 && section!=='CARD ACTIONS'?' loop-nav-group-start':''}">${label}${v==='contacts'?'<span class="connection-badge" data-unread-count hidden></span>':''}</button>`).join('')}`).join('')}</aside><section><div class="top-row"><div><h1>${({overview:'My Account',edit:'Edit your card',share:'Share Your Digital Business Card','qr-shortcut':isMobileDevice()?'Add My QR Code to Home Screen':'Add My QR Code to Desktop',wallet:'Add My Card to Google Wallet',signature:'Email Signature Generator',contacts:'Your connections',settings:'Settings'})[view]}</h1><p>Welcome${profile.full_name?', '+esc(profile.full_name.split(' ')[0]):''}. Your network starts here.</p></div>${profile.published?`<a href="#/u/${encodeURIComponent(profile.username)}" class="btn secondary small">View public card ↗</a>`:'<span class="hint">Card is private</span>'}</div><div id="dash-body"></div></section></main>`);document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;showDashboard()});const demoLink=document.querySelector('[data-open-demo]');if(demoLink)demoLink.onclick=()=>{location.hash='/demo';};const el=document.getElementById('dash-body');if(view==='overview'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:20px;margin-bottom:10px">Your digital identity</h2><p class="muted" style="margin-bottom:20px">Keep your card current and share it anywhere.</p>${card(profile)}</div><div class="panel"><h3 style="margin-bottom:16px">Quick share</h3>${qrBlock(profile)}<p class="hint" style="margin-top:16px">${profile.published?'Your card is public.':'Publish your card in Edit card before sharing.'}</p></div></div>`;wireCard(profile);drawQR(profile);}else if(view==='edit'){el.innerHTML=`<div class="panel"><div class="info-strip" style="margin-bottom:20px">Only publish information you're comfortable sharing publicly. Your personal card link and QR code stay the same.</div>${profileForm(profile)}</div>`;document.getElementById('profile-form').onsubmit=saveProfile;wireProfileEditor()}else if(view==='share'){el.innerHTML=`<div class="dashboard-grid" style="grid-template-columns:minmax(0,1fr)"><div class="panel"><h2 style="font-size:19px">Your QR code</h2><p class="hint" style="margin:8px 0 20px">Let others scan your QR code to instantly view and save your contact information.</p>${qrBlock(profile)}<div class="actions"><button class="btn" data-action="native-share">↗ Share card</button><button class="btn secondary" data-action="share-by-email">✉ Email card</button><button class="btn secondary" id="share-qr-image">↗ Share QR image</button><button class="btn secondary" id="download-qr">↓ Download QR</button></div>${!profile.published?'<p class="error">Your card is currently private. Publish it in Edit card before sharing.</p>':''}</div></div><div class="panel" style="margin-top:18px"><h3 style="margin-bottom:8px">Keep Your QR Code One Tap Away</h3><p class="hint" style="margin-bottom:14px">Save your personal QR code to your Home Screen or computer desktop, so you can show it instantly without signing in.</p><a class="btn secondary" href="#/my-qr/u/${encodeURIComponent(profile.username)}" id="open-personal-my-qr" style="max-width:100%">⌂ Add My QR Code to Home Screen →</a></div><div class="panel" style="margin-top:18px"><h3 style="margin-bottom:8px">Add your card to Google Wallet</h3><p class="hint" style="margin-bottom:14px">Keep your Loop card handy on your phone. Your Wallet QR code will open your live digital card when someone scans it.</p><button type="button" class="btn secondary" id="add-to-google-wallet" ${profile.published?'':'disabled'}>▣ Add to Google Wallet</button><p id="google-wallet-status" role="status" aria-live="polite" class="hint" style="margin-top:10px"></p><p class="hint" style="margin-top:8px">Google Wallet passes can currently be saved only by approved test accounts.</p></div>`;wireCard(profile);
 drawQR(profile);
 const shareQR = document.getElementById('qr-canvas');
 if (shareQR) {
@@ -866,12 +970,36 @@ function showSettingsPage(){
  if(me?.user_metadata?.loop_passkey_offer)msg.textContent='Your account is ready! You can set up your passkey now, or do it later.';
 }
 
-async function saveProfile(e){e.preventDefault();const f=new FormData(e.target);const o={};for(const [key] of fields)o[key]=String(f.get(key)||'').trim();o.photo_url=String(f.get('photo_url')||'').trim();o.theme=String(f.get('theme')||'violet');if(!THEMES.includes(o.theme)){announce('Choose a valid theme');return}o.username=o.username.toLowerCase();if(!/^[a-z0-9_-]{3,30}$/.test(o.username)){announce('Username must be 3–30 letters, digits, _ or -');return}for(const key of ['website','linkedin','photo_url'])if(o[key]&&!safeUrl(o[key])){announce(`${key} must be a valid http(s) URL`);return}o.published=f.has('published');o.show_email=f.has('show_email');o.show_phone=f.has('show_phone');const btn=e.target.querySelector('button[type=submit]');btn.disabled=true;const {data,error}=await db.from('profiles').update(o).eq('id',me.id).select().single();btn.disabled=false;if(error){announce(error.code==='23505'?'Username already taken':error.message);return}
-profile = data;
-view = 'overview';
-showDashboard();
-announce('Profile saved successfully!');
-window.scrollTo({ top: 0, behavior: 'smooth' });
+async function saveProfile(e){
+ e.preventDefault();
+ const form=e.currentTarget, f=new FormData(form),o={};
+ for(const [key] of fields)o[key]=String(f.get(key)||'').trim();
+ if(!o.full_name||!o.title){document.getElementById('save-message').textContent='Please enter your full name and job title / credentials.';return;}
+ o.photo_url=String(f.get('photo_url')||'').trim();
+ o.theme=String(f.get('theme')||'violet');
+ if(!THEMES.includes(o.theme)){announce('Choose a valid theme');return;}
+ for(const key of ['website','linkedin','photo_url']){
+  if(o[key]&&!safeUrl(o[key])){
+   document.getElementById('loop-additional-info').open=true;
+   document.getElementById('save-message').textContent=`${key} must be a valid http(s) URL.`;
+   document.getElementById('f-'+key)?.focus();return;
+  }
+ }
+ // Never submit or change the username: existing personal URLs and QR codes stay valid.
+ o.published=f.has('published');
+ for(const key of ['show_email','show_phone','show_personal_phone','show_additional_phone','show_work_address'])o[key]=f.has(key);
+ const btn=form.querySelector('button[type=submit]');
+ const status=document.getElementById('save-message');
+ btn.disabled=true;status.textContent='Saving…';
+ try{
+  const {data,error}=await db.from('profiles').update(o).eq('id',me.id).select().single();
+  if(error)throw error;
+  profile=data;view='overview';showDashboard();announce('Profile saved successfully!');
+  window.scrollTo({top:0,behavior:'smooth'});
+ }catch(error){
+  const migrationNeeded=/column .* does not exist|could not find the .* column|PGRST204|42703/i.test(error.message||'');
+  status.textContent=migrationNeeded?'New profile fields are not configured in Supabase yet. Apply the included SQL migration and try again.':'Could not save your card: '+error.message;
+ }finally{if(btn.isConnected)btn.disabled=false;}
 }
 // Notification count is derived from private contact_exchanges and the user's private read receipt.
 function syncUnreadBadges(){
