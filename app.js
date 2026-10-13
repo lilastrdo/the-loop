@@ -190,7 +190,8 @@ html[data-mode="dark"] .loop-home-actions .btn.loop-home-demo:hover {
 }
 </style><div class="actions loop-home-actions"><a class="btn loop-home-create" href="#/auth?signup">Create your digital card →</a><a class="btn loop-home-demo" href="#/demo">Explore the demo →</a><a class="btn loop-home-signin" href="#/auth">Sign in →</a></div></div><div class="hero-art hero-phone"><img src="hero-phone-demo.png" alt="Phone displaying a sample the Loop card alongside QR sharing" class="hero-phone-image"></div></section><section class="section"><h2>Everything you need to connect</h2><p>Fast to create, delightful to share, effortless to save.</p><div class="feature-grid">${feature('▦','Instant QR sharing','Show your QR code. Anyone can scan it with their phone camera.')}${feature('↗','Share anywhere','Use your phone’s native share menu for supported apps and nearby sharing.')}${feature('⇄','Two-way exchange','Visitors share their details with you, even if they have no account.')}${feature('◉','Beautiful profiles','Your photo, contact links, bio and professional identity in one place.')}${feature('✎','Update anytime','Edit your details. Your permanent card link stays the same.')}${feature('▤','Save to contacts','Recipients can download a contact file for their phone.')}</div></section></main>`)}
 const demo={full_name:'John Smith',title:'RN, BSN',company:'Example Medical Center',bio:'Registered nurse • Patient care and professional networking',email:'john.smith@example.com',phone:'+1 202-555-0147',website:'',linkedin:'https://www.linkedin.com/',username:'demo',photo_url:''};
-// Existing public email/work-phone toggles are retained. New personal fields are opt-in only.
+// Publication flags are set automatically for filled fields when the owner saves.
+// Older saved privacy choices remain in force until the next deliberate save.
 const visibleCard=p=>({
   ...p,
   email:p.show_email===false?'':p.email,
@@ -205,10 +206,10 @@ function emailContactLink(p){
   const body=`Hi ${firstName},\n\nI came across your digital business card on the Loop and wanted to reach out.\n\nBest regards,`;
   return `mailto:${encodeURIComponent(p.email||'')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
-function card(p){
+function card(p,preview=false){
   p=visibleCard(p);
   const callLink=(phone,label)=>phone?`<a href="tel:${esc(String(phone).replace(/[^+\d]/g,''))}">☎ ${label}</a>`:'';
-  return `<article class="profile-view theme-${esc(THEMES.includes(p.theme)?p.theme:'violet')}"><div class="cover"></div><div class="identity">${avatar(p)}<h2>${esc(p.full_name||'Unnamed profile')}</h2><div class="title">${esc(p.title||'')}</div>${p.company?`<p class="muted" style="margin-top:6px">${esc(p.company)}</p>`:''}<p class="bio">${esc(p.bio||'')}</p><div class="social">${p.email?`<a href="${esc(emailContactLink(p))}">✉ Work Email</a>`:''}${callLink(p.phone,'Work Phone')}${callLink(p.personal_phone,'Personal Phone')}${callLink(p.additional_phone,'Other Phone')}${safeUrl(p.linkedin)?`<a href="${esc(safeUrl(p.linkedin))}" target="_blank" rel="noopener noreferrer">in LinkedIn</a>`:''}${safeUrl(p.website)?`<a href="${esc(safeUrl(p.website))}" target="_blank" rel="noopener noreferrer">↗ Website</a>`:''}</div>${p.work_address?`<p class="muted" style="margin:12px 0 0;overflow-wrap:anywhere">⌖ Work address: ${esc(p.work_address)}</p>`:''}<button class="btn block" data-action="save-contact">↓ Save Contact</button><button class="btn secondary block" data-action="native-share">↗ Share This Card</button></div></article>`;
+  return `<article class="profile-view theme-${esc(THEMES.includes(p.theme)?p.theme:'violet')}"${preview?' inert aria-label="Live card preview" style="pointer-events:none"':''}><div class="cover"></div><div class="identity">${avatar(p)}<h2>${esc(p.full_name||'Unnamed profile')}</h2><div class="title">${esc(p.title||'')}</div>${p.company?`<p class="muted" style="margin-top:6px">${esc(p.company)}</p>`:''}<p class="bio">${esc(p.bio||'')}</p><div class="social">${p.email?`<a href="${esc(emailContactLink(p))}">✉ Work Email</a>`:''}${callLink(p.phone,'Work Phone')}${callLink(p.personal_phone,'Personal Phone')}${callLink(p.additional_phone,'Other Phone')}${safeUrl(p.linkedin)?`<a href="${esc(safeUrl(p.linkedin))}" target="_blank" rel="noopener noreferrer">in LinkedIn</a>`:''}${safeUrl(p.website)?`<a href="${esc(safeUrl(p.website))}" target="_blank" rel="noopener noreferrer">↗ Website</a>`:''}</div>${p.work_address?`<p class="muted" style="margin:12px 0 0;overflow-wrap:anywhere">⌖ Work address: ${esc(p.work_address)}</p>`:''}<button type="button" class="btn block" data-action="save-contact">↓ Save Contact</button><button type="button" class="btn secondary block" data-action="native-share">↗ Share This Card</button></div></article>`;
 }
 function vcard(p){
   p=visibleCard(p);
@@ -492,7 +493,7 @@ async function publicPage(username){
   let extras={};
   try{
     const {data:extra,error:extraError}=await db.from('public_card_extras')
-      .select('personal_phone,additional_phone,work_address,show_personal_phone,show_additional_phone,show_work_address')
+      .select('personal_phone,additional_phone,work_address,show_personal_phone,show_additional_phone,show_work_address,website')
       .eq('username',username).maybeSingle();
     if(extraError)throw extraError;
     if(extra)extras=extra;
@@ -564,7 +565,7 @@ async function getMyProfile(){let {data,error}=await db.from('profiles').select(
 const THEMES=['violet','ocean','emerald','sunset','rose','midnight','executive-navy','graphite','slate','forest','champagne','burgundy','ivory','steel-blue','espresso','teal-professional'];
 // Keep the already-published username immutable in the edit UI so links/QRs stay stable.
 // Only full name and title/credentials are required. Existing email/phone columns
-// are now clearly labelled WORK contact details and preserve their visibility controls.
+// are now clearly labelled WORK contact details; filled contact fields are published on save.
 const fields=[
  ['full_name','Full Name','text',true],
  ['title','Job Title / Credentials','text',true],
@@ -582,7 +583,7 @@ const profileFieldPlaceholder={
  full_name:'Enter your full name',title:'e.g. Registered Nurse, BSN, PCCN',
  company:'Company or organization (optional)',email:'name@company.com',phone:'Work phone (optional)',
  bio:'Tell people a little about yourself (500 characters max)',linkedin:'https://linkedin.com/in/…',
- personal_phone:'Personal number (private by default)',additional_phone:'Another number (private by default)',
+ personal_phone:'Personal number (shown if entered)',additional_phone:'Another number (shown if entered)',
  work_address:'Your office or workplace address',website:'https://yourwebsite.com'
 };
 function profileField(p,key){
@@ -593,13 +594,12 @@ function profileField(p,key){
   const autocomplete={full_name:'name',email:'email',phone:'tel',personal_phone:'tel',company:'organization',website:'url'}[key]||'off';
   return `<div class="field" style="min-width:0"><label for="f-${key}">${esc(label)}${required?' <span aria-label="required" style="color:#9b89ff">*</span>':''}</label>${type==='textarea'?`<textarea id="f-${key}" name="${key}" maxlength="${max}" placeholder="${esc(hint)}" rows="${key==='bio'?3:2}" ${required?'required':''}>${esc(p[key]||'')}</textarea>`:`<input id="f-${key}" name="${key}" type="${type}" maxlength="${max}" autocomplete="${autocomplete}" placeholder="${esc(hint)}" value="${esc(p[key]||'')}" ${required?'required':''}>`}</div>`;
 }
-function themeSelector(p){return `<div class="wide theme-editor"><label>Card color theme</label><div class="theme-options">${THEMES.map(t=>`<label class="theme-pick"><input type="radio" name="theme" value="${t}" ${((p.theme||'violet')===t)?'checked':''}><span class="theme-dot theme-${t}"></span><span class="theme-name">${t.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')}</span></label>`).join('')}</div><p class="hint">Choose a color to preview it on your card.</p><div id="theme-preview">${card(p)}</div></div>`}
+function themeSelector(p){return `<div class="wide theme-editor"><label>Card color theme</label><div class="theme-options">${THEMES.map(t=>`<label class="theme-pick"><input type="radio" name="theme" value="${t}" ${((p.theme||'violet')===t)?'checked':''}><span class="theme-dot theme-${t}"></span><span class="theme-name">${t.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')}</span></label>`).join('')}</div><p class="hint">Choose a color to see it in your live preview below.</p></div>`}
 function photoPicker(p){return `<div class="wide photo-editor"><label>Profile picture</label><div class="photo-actions"><button type="button" class="btn secondary" id="choose-photo">Upload photo</button><button type="button" class="btn secondary" id="take-photo">Take a photo</button><button type="button" class="btn secondary" id="edit-photo" ${p.photo_url?'':'disabled'}>Crop / edit photo</button><button type="button" class="btn ghost" id="remove-photo">Remove photo</button></div><input hidden type="file" id="photo-input" accept="image/*"><input hidden type="file" id="camera-input" accept="image/*" capture="user"><input type="hidden" id="f-photo_url" name="photo_url" value="${esc(p.photo_url||'')}"><p class="hint" id="photo-message">JPG, PNG, or WebP, up to 8 MB. Crop and adjust before uploading. Photos are stored in a public profile-photo bucket.</p><div class="photo-preview" id="photo-preview">${avatar(p)}</div><div class="crop-editor" id="crop-editor" hidden><h3>Crop your profile photo</h3><p class="hint">Drag the picture to reposition it, then adjust the zoom. The circular guide shows what your profile photo will look like.</p><div class="crop-stage" id="crop-stage"><canvas id="crop-canvas" width="320" height="320" aria-label="Crop photo preview"></canvas></div><label class="crop-zoom-label" for="crop-zoom">Zoom <input id="crop-zoom" type="range" min="1" max="3" step="0.01" value="1"></label><div class="crop-actions"><button class="btn" type="button" id="apply-crop">Apply crop</button><button class="btn secondary" type="button" id="cancel-crop">Cancel</button></div></div></div>`}
 function profileForm(p){
   const professional=['full_name','title','company','email','phone'];
   const optional=['bio','linkedin','personal_phone','additional_phone','work_address','website'];
   const gridStyle='display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,255px),1fr));gap:16px';
-  const check=(key,text)=>`<label class="check" style="margin:5px 0"><input type="checkbox" name="${key}" ${p[key]?'checked':''}><span>${text}</span></label>`;
   return `<form class="profile-form" id="profile-form">
     <section class="wide" style="grid-column:1/-1">
       <h3 style="margin-bottom:8px">Professional Information</h3>
@@ -613,14 +613,13 @@ function profileForm(p){
     <section class="wide" style="grid-column:1/-1">${photoPicker(p)}</section>
     <section class="wide" style="grid-column:1/-1">${themeSelector(p)}</section>
     <section class="wide" style="grid-column:1/-1;border-top:1px solid var(--line,#dbe2ea);padding-top:18px">
-      <h3 style="margin-bottom:7px">Contact Visibility & Privacy</h3>
-      <p class="hint" style="margin:0 0 14px">Contact numbers and addresses are hidden on your public card until you choose to show them. Your public name, title and organization remain visible when your card is published.</p>
-      ${check('show_email','Show work email on my public card')}
-      ${check('show_phone','Show work phone on my public card')}
-      ${check('show_personal_phone','Show personal phone on my public card')}
-      ${check('show_additional_phone','Show additional phone on my public card')}
-      ${check('show_work_address','Show work address on my public card')}
-      <div style="margin-top:14px">${check('published','Publish my card so anyone with my link can view the details I choose to share.')}</div>
+      <p class="hint" style="margin:0 0 14px"><strong>Only enter details you want to share.</strong> Any completed fields will appear on your public card when it is published. Leave a field blank to keep it off your card.</p>
+      <label class="check"><input type="checkbox" name="published" ${p.published?'checked':''}><span>Publish my card so anyone with my link can view it.</span></label>
+    </section>
+    <section class="wide" id="loop-live-preview-section" style="grid-column:1/-1;margin:24px 0 5px;border-top:1px solid var(--line,#dbe2ea);padding-top:22px">
+      <h3 style="margin:0 0 6px">Your Live Card Preview</h3>
+      <p class="hint" style="margin:0 0 18px">Your preview updates as you type, select a theme, or change a photo. Changes are not public until you save. The contact buttons in the preview are inactive.</p>
+      <div id="loop-live-card-preview" aria-live="off" style="max-width:540px;margin:0 auto">${card({...p,show_email:!!p.email,show_phone:!!p.phone,show_personal_phone:!!p.personal_phone,show_additional_phone:!!p.additional_phone,show_work_address:!!p.work_address},true)}</div>
     </section>
     <div class="wide" style="grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:14px">
       <button type="button" id="reset-profile" class="btn secondary">Reset</button>
@@ -631,12 +630,29 @@ function profileForm(p){
   </form>`;
 }
 function wireProfileEditor(){
- const form=document.getElementById('profile-form'),draft={...profile},themePreview=document.getElementById('theme-preview');
+ const form=document.getElementById('profile-form'),draft={...profile};
+ // The editor preview is deliberately local-only and never writes to Supabase.
+ // Show what a published card WOULD display after saving, including all filled
+ // optional fields; do not reuse stored privacy flags for an unsaved draft.
+ const preview=document.getElementById('loop-live-card-preview');
+ const getDraft=()=>{
+   const data=new FormData(form);
+   const next={...profile};
+   for(const [key] of fields)next[key]=String(data.get(key)||'').trim();
+   next.theme=String(data.get('theme')||'violet');
+   next.photo_url=String(data.get('photo_url')||'').trim();
+   for(const [field,flag] of [['email','show_email'],['phone','show_phone'],['personal_phone','show_personal_phone'],['additional_phone','show_additional_phone'],['work_address','show_work_address']])next[flag]=!!next[field];
+   return next;
+ };
+ const updateLivePreview=()=>{if(preview?.isConnected)preview.innerHTML=card(getDraft(),true);};
+ form.addEventListener('input',updateLivePreview);
+ form.addEventListener('change',updateLivePreview);
+ updateLivePreview();
  document.getElementById('reset-profile').onclick=()=>{view='edit';showDashboard();announce('Unsaved changes reset to your last saved card.');};
  document.getElementById('cancel-profile').onclick=()=>{view='overview';showDashboard();window.scrollTo({top:0,behavior:'smooth'});};
  // Browser validation must expand the optional panel before focusing an invalid URL.
  form.addEventListener('invalid',event=>{const optional=document.getElementById('loop-additional-info');if(optional?.contains(event.target))optional.open=true;},true);
- form.querySelectorAll('[name=theme]').forEach(r=>r.onchange=()=>{draft.theme=r.value;themePreview.innerHTML=card(draft)});
+ // Theme inputs trigger the same live-preview update as every other field.
  const imgInput=document.getElementById('photo-input'),cameraInput=document.getElementById('camera-input');
  const editor=document.getElementById('crop-editor'),canvas=document.getElementById('crop-canvas'),ctx=canvas.getContext('2d');
  const zoom=document.getElementById('crop-zoom'),stage=document.getElementById('crop-stage'),editBtn=document.getElementById('edit-photo');
@@ -645,7 +661,7 @@ function wireProfileEditor(){
  function renderCrop(){if(!cropImage)return;const size=canvas.width;ctx.clearRect(0,0,size,size);ctx.fillStyle='#e9edf4';ctx.fillRect(0,0,size,size);const scale=Math.max(size/cropImage.width,size/cropImage.height)*zoomValue;const w=cropImage.width*scale,h=cropImage.height*scale;offsetX=Math.max((size-w)/2,Math.min((w-size)/2,offsetX));offsetY=Math.max((size-h)/2,Math.min((h-size)/2,offsetY));ctx.drawImage(cropImage,(size-w)/2+offsetX,(size-h)/2+offsetY,w,h);ctx.save();ctx.fillStyle='rgba(0,0,0,.40)';ctx.beginPath();ctx.rect(0,0,size,size);ctx.arc(size/2,size/2,size/2-3,0,Math.PI*2,true);ctx.fill('evenodd');ctx.restore();ctx.beginPath();ctx.arc(size/2,size/2,size/2-3,0,Math.PI*2);ctx.lineWidth=3;ctx.strokeStyle='#fff';ctx.stroke();}
  async function startCrop(source){try{const image=await createImageBitmap(source);if(cropImage?.close)cropImage.close();cropImage=image;offsetX=offsetY=0;zoomValue=1;zoom.value='1';editor.hidden=false;renderCrop();editor.scrollIntoView({behavior:'smooth',block:'nearest'});status.textContent='Adjust the crop, then click Apply crop.';}catch(e){status.textContent='Could not open photo for editing: '+e.message;}}
  document.getElementById('choose-photo').onclick=()=>imgInput.click();document.getElementById('take-photo').onclick=()=>cameraInput.click();
- document.getElementById('remove-photo').onclick=()=>{draft.photo_url='';document.getElementById('f-photo_url').value='';document.getElementById('photo-preview').innerHTML=avatar(draft);themePreview.innerHTML=card(draft);editBtn.disabled=true;editor.hidden=true;status.textContent='Photo removed from preview. Click Save profile to apply.'};
+ document.getElementById('remove-photo').onclick=()=>{draft.photo_url='';document.getElementById('f-photo_url').value='';document.getElementById('photo-preview').innerHTML=avatar(draft);updateLivePreview();editBtn.disabled=true;editor.hidden=true;status.textContent='Photo removed from preview. Click Save profile to apply.'};
  const process=e=>{const file=e.target.files?.[0];e.target.value='';if(!file)return;if(!['image/jpeg','image/png','image/webp'].includes(file.type)){status.textContent='Choose a JPG, PNG, or WebP photo.';return}if(file.size>8*1024*1024){status.textContent='Choose a photo smaller than 8 MB.';return}startCrop(file)};
  imgInput.onchange=process;cameraInput.onchange=process;
  editBtn.onclick=async()=>{if(!draft.photo_url)return;status.textContent='Opening current photo…';try{const response=await fetch(draft.photo_url,{mode:'cors'});if(!response.ok)throw Error('Photo unavailable');await startCrop(await response.blob())}catch(e){status.textContent='Could not load the existing photo for editing. Please upload it again to crop.'}};
@@ -659,7 +675,7 @@ function wireProfileEditor(){
   try{const size=640,c=document.createElement('canvas');c.width=c.height=size;const context=c.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,size,size);const factor=size/canvas.width,scale=Math.max(canvas.width/cropImage.width,canvas.height/cropImage.height)*zoomValue;const w=cropImage.width*scale,h=cropImage.height*scale;context.drawImage(cropImage,((canvas.width-w)/2+offsetX)*factor,((canvas.height-h)/2+offsetY)*factor,w*factor,h*factor);
    const blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(Error('Could not crop photo')),'image/jpeg',0.85));
    const path=`${me.id}/avatar-${Date.now()}.jpg`;const {error}=await db.storage.from('profile-photos').upload(path,blob,{contentType:'image/jpeg',upsert:false,cacheControl:'3600'});if(error)throw error;
-   const {data}=db.storage.from('profile-photos').getPublicUrl(path);draft.photo_url=data.publicUrl;document.getElementById('f-photo_url').value=data.publicUrl;document.getElementById('photo-preview').innerHTML=avatar(draft);themePreview.innerHTML=card(draft);editBtn.disabled=false;editor.hidden=true;status.textContent='Cropped photo uploaded! Click Save profile to apply it.';
+   const {data}=db.storage.from('profile-photos').getPublicUrl(path);draft.photo_url=data.publicUrl;document.getElementById('f-photo_url').value=data.publicUrl;document.getElementById('photo-preview').innerHTML=avatar(draft);updateLivePreview();editBtn.disabled=false;editor.hidden=true;status.textContent='Cropped photo uploaded! Click Save profile to apply it.';
   }catch(err){status.textContent='Photo upload failed: '+err.message}finally{submit.disabled=false}
  };
 }
@@ -985,9 +1001,25 @@ async function saveProfile(e){
    document.getElementById('f-'+key)?.focus();return;
   }
  }
+ // Filled-in details appear when the card is published; blanks are omitted.
+ // Keep the existing stored visibility flags until the owner deliberately saves.
+ // This prevents a deployment alone from exposing previously hidden contact data.
  // Never submit or change the username: existing personal URLs and QR codes stay valid.
  o.published=f.has('published');
- for(const key of ['show_email','show_phone','show_personal_phone','show_additional_phone','show_work_address'])o[key]=f.has(key);
+ const contactVisibility=[
+  ['email','show_email','Work Email'],
+  ['phone','show_phone','Work Phone'],
+  ['personal_phone','show_personal_phone','Personal Phone'],
+  ['additional_phone','show_additional_phone','Additional Phone'],
+  ['work_address','show_work_address','Work Address']
+ ];
+ for(const [field,visibility] of contactVisibility)o[visibility]=Boolean(o[field]);
+ const previouslyHidden=contactVisibility
+  .filter(([field,visibility])=>Boolean(o[field])&&profile?.[visibility]===false&&Boolean(String(profile[field]||'').trim()))
+  .map(([, ,label])=>label);
+ if(previouslyHidden.length){
+  if(!window.confirm('These previously hidden details will become public when your card is published:\n\n'+previouslyHidden.map(label=>'• '+label).join('\n')+'\n\nRemove any you want to keep private, or select OK to save and show them.'))return;
+ }
  const btn=form.querySelector('button[type=submit]');
  const status=document.getElementById('save-message');
  btn.disabled=true;status.textContent='Saving…';
