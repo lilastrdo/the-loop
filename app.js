@@ -45,6 +45,7 @@ const isAndroidChrome=()=>isAndroidDevice()&&/Chrome\//i.test(navigator.userAgen
 const isDesktopChromium=()=>!isMobileDevice()&&/(Chrome\/|Chromium\/|Edg\/)/i.test(navigator.userAgent||'')&&!/(OPR\/|Firefox\/)/i.test(navigator.userAgent||'');
 const canPromptQuickQrInstall=()=>isAndroidChrome()||isDesktopChromium();
 let deferredQuickQrPrompt=null;
+let showQuickQrSetupOnNextOpen=false; // In-memory only: new Home Screen launches still display the scannable QR.
 // A supported Android or desktop Chromium browser may offer a native install prompt.
 // The dedicated QR manifest starts the public QR app without a login token.
 // The selected username is saved locally for the fixed start route to restore.
@@ -297,6 +298,10 @@ function drawQR(p) {
 }
 
 async function myQuickQrPage(username=''){
+  // A visitor opening an installed shortcut always receives the QR display.
+  // Only an in-page click from the setup menu switches to the focused setup view.
+  const setupOnly=showQuickQrSetupOnNextOpen;
+  showQuickQrSetupOnNextOpen=false;
   if(!configured){
     render('<main class="center-wrap"><div class="panel auth"><h2>My QR</h2><p class="muted">The Loop is temporarily unavailable.</p></div></main>');
     return;
@@ -359,6 +364,7 @@ async function myQuickQrPage(username=''){
   // this public username locally before it offers an install prompt.
   try{localStorage.setItem(MY_QR_LAST_KEY,p.username);}catch{}
   render(`<main class="shell" style="max-width:670px;padding-top:26px;padding-bottom:56px">
+    <div id="my-qr-showcase" ${setupOnly?'hidden':''}>
     <section class="panel" style="background:#223449;color:#fff;text-align:center;padding:clamp(20px,5vw,34px);border:1px solid #3f526c;box-shadow:0 16px 42px #0002">
       <p style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#d8e3f5;margin-bottom:12px">My Loop QR</p>
       <h1 style="font-size:clamp(25px,5vw,34px);line-height:1.25;margin-bottom:8px;color:#fff">${esc(p.full_name||'My Digital Card')}</h1>
@@ -376,16 +382,18 @@ async function myQuickQrPage(username=''){
         <button type="button" id="my-qr-download" class="btn secondary">↓ Download QR</button>
       </div>
     </section>
-    <section class="panel" style="margin-top:16px;padding:20px">
+    </div>
+    <section class="panel" style="margin-top:${setupOnly?'0':'16px'};padding:20px">
       <div style="display:flex;align-items:flex-start;gap:13px">
         <div aria-hidden="true" style="flex:0 0 45px;width:45px;height:45px;border-radius:13px;background:#f0edff;color:#4f35d5;display:grid;place-items:center;font-size:25px">▦</div>
         <div style="min-width:0">
-          <h2 style="font-size:19px;margin:2px 0 7px">My Digital Business Card</h2>
+          <h2 style="font-size:19px;margin:2px 0 7px">${setupOnly?(isMobileDevice()?'Add My QR Code to Home Screen':'Add My QR Code to Desktop'):'My Digital Business Card'}</h2>
           <p class="muted" style="font-size:14px;line-height:1.6">Add your personal Loop QR shortcut to your ${isMobileDevice()?'phone or tablet':'computer'} for instant access, without logging in.</p>
         </div>
       </div>
       <button type="button" class="btn block" id="my-qr-install" aria-haspopup="dialog" aria-controls="my-qr-install-dialog" style="margin-top:16px;min-height:51px;background:#4f35d5;border-color:#4f35d5">${isMobileDevice()?'⌂ Add to Home Screen':'▣ Install on Computer'}</button>
-      <p class="hint" style="margin-top:10px;text-align:center">Quick setup · No app download required</p>
+      <p class="hint" style="margin-top:10px;text-align:center">Quick setup · No app store required</p>
+      ${setupOnly?`<p class="hint" style="margin-top:13px;text-align:center">Your shortcut will open your scannable QR code—not this setup screen.</p>`:''}
     </section>
     <style>
       #my-qr-install-dialog::backdrop{background:rgba(10,17,31,.68);backdrop-filter:blur(2px)}
@@ -396,12 +404,13 @@ async function myQuickQrPage(username=''){
         <h2 id="my-qr-guide-heading" style="font-size:20px;margin:0">${isMobileDevice()?'Add to Home Screen':'Install on Computer'}</h2>
         <button type="button" id="my-qr-guide-close" class="btn ghost small" aria-label="Close shortcut instructions" style="min-width:38px;padding:6px">✕</button>
       </div>
-      <p class="muted" style="font-size:14px;line-height:1.6;margin-bottom:14px">Keep this personal QR page open. Name your shortcut <strong>${esc(MY_QR_INSTALL_NAME)}</strong> when prompted.</p>
+      <p class="muted" style="font-size:14px;line-height:1.6;margin-bottom:14px">Keep this page open. Name your shortcut <strong>${esc(MY_QR_INSTALL_NAME)}</strong> when prompted.</p>
       <div id="my-qr-guide-steps" style="font-size:14px;line-height:1.8;padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--bg)"></div>
       <p class="hint" style="margin-top:12px">${isMobileDevice()?'If offered both choices, select <strong>Create shortcut</strong> to pin this exact personal QR link.':'For the most reliable direct link, create a shortcut to this exact QR page. Some browsers can also install it as an app.'}</p>
       <button type="button" class="btn secondary block" id="my-qr-copy-shortcut" style="margin-top:16px">Copy personal shortcut link</button>
       <button type="button" class="btn block" id="my-qr-guide-done" style="margin-top:9px">Done</button>
     </dialog>
+    ${setupOnly?`<div style="text-align:center;margin-top:16px"><a class="btn ghost" href="${esc(homeUrl)}">Preview My QR Code →</a></div>`:''}
     <div style="text-align:center;margin-top:22px"><a class="btn ghost" href="#/dashboard">← My Account</a></div>
   </main>`);
   drawQR(p);
@@ -815,7 +824,7 @@ function showPasskeyOnboarding(){
 
 function wirePersonalQrLink(){
  const personalQrLink=document.getElementById('open-personal-my-qr');
- if(personalQrLink)personalQrLink.onclick=()=>{try{localStorage.setItem(MY_QR_LAST_KEY,profile.username);}catch{}};
+ if(personalQrLink)personalQrLink.onclick=()=>{showQuickQrSetupOnNextOpen=true;try{localStorage.setItem(MY_QR_LAST_KEY,profile.username);}catch{}};
 }
 function wireGoogleWalletButton(){
 const walletButton=document.getElementById('add-to-google-wallet');
@@ -865,7 +874,7 @@ function showDashboard(){render(`<style>
   ['CARD ACTIONS', [['overview','⌂ My Account'],['edit','✎ Edit My Card'],['share','▦ Share My Digital Card'],['contacts','⇄ My Connections']]],
   ['SPECIAL FEATURES', [['qr-shortcut',isMobileDevice()?'⌂ Add My QR Code to Home Screen':'⌂ Add My QR Code to Desktop'],['wallet','▣ Add My Card to Google Wallet']]],
   ['', [['signature','✉ Create Email Signature'],['demo','↗ Explore the Demo'],['settings','⚙ Settings']]]
- ].map(([section,items])=>`${section?`<div class="loop-side-heading" aria-hidden="true">${section}</div>`:''}${items.map(([v,label],i)=>`<button ${v==='demo'?'data-open-demo':'data-view="'+v+'"'} class="${view===v?'active':''}${i===0 && section!=='CARD ACTIONS'?' loop-nav-group-start':''}">${label}${v==='contacts'?'<span class="connection-badge" data-unread-count hidden></span>':''}</button>`).join('')}`).join('')}</aside><section><div class="top-row"><div><h1>${({overview:'My Account',edit:'Edit your card',share:'Share Your Digital Business Card','qr-shortcut':isMobileDevice()?'Add My QR Code to Home Screen':'Add My QR Code to Desktop',wallet:'Add My Card to Google Wallet',signature:'Email Signature Generator',contacts:'Your connections',settings:'Settings'})[view]}</h1><p>Welcome${profile.full_name?', '+esc(profile.full_name.split(' ')[0]):''}. Your network starts here.</p></div>${profile.published?`<a href="#/u/${encodeURIComponent(profile.username)}" class="btn secondary small">View public card ↗</a>`:'<span class="hint">Card is private</span>'}</div><div id="dash-body"></div></section></main>`);document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;showDashboard()});const demoLink=document.querySelector('[data-open-demo]');if(demoLink)demoLink.onclick=()=>{location.hash='/demo';};const el=document.getElementById('dash-body');if(view==='overview'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:20px;margin-bottom:10px">Your digital identity</h2><p class="muted" style="margin-bottom:20px">Keep your card current and share it anywhere.</p>${card(profile)}</div><div class="panel"><h3 style="margin-bottom:16px">Quick share</h3>${qrBlock(profile)}<p class="hint" style="margin-top:16px">${profile.published?'Your card is public.':'Publish your card in Edit card before sharing.'}</p></div></div>`;wireCard(profile);drawQR(profile);}else if(view==='edit'){el.innerHTML=`<div class="panel"><div class="info-strip" style="margin-bottom:20px">Only publish information you're comfortable sharing publicly. Your personal card link and QR code stay the same.</div>${profileForm(profile)}</div>`;document.getElementById('profile-form').onsubmit=saveProfile;wireProfileEditor()}else if(view==='share'){el.innerHTML=`<div class="dashboard-grid" style="grid-template-columns:minmax(0,1fr)"><div class="panel"><h2 style="font-size:19px">Your QR code</h2><p class="hint" style="margin:8px 0 20px">Let others scan your QR code to instantly view and save your contact information.</p>${qrBlock(profile)}<div class="actions"><button class="btn" data-action="native-share">↗ Share card</button><button class="btn secondary" data-action="share-by-email">✉ Email card</button><button class="btn secondary" id="share-qr-image">↗ Share QR image</button><button class="btn secondary" id="download-qr">↓ Download QR</button></div>${!profile.published?'<p class="error">Your card is currently private. Publish it in Edit card before sharing.</p>':''}</div></div><div class="panel" style="margin-top:18px"><h3 style="margin-bottom:8px">Keep Your QR Code One Tap Away</h3><p class="hint" style="margin-bottom:14px">Save your personal QR code to your Home Screen or computer desktop, so you can show it instantly without signing in.</p><a class="btn secondary" href="#/my-qr/u/${encodeURIComponent(profile.username)}" id="open-personal-my-qr" style="max-width:100%">⌂ Add My QR Code to Home Screen →</a></div><div class="panel" style="margin-top:18px"><h3 style="margin-bottom:8px">Add your card to Google Wallet</h3><p class="hint" style="margin-bottom:14px">Keep your Loop card handy on your phone. Your Wallet QR code will open your live digital card when someone scans it.</p><button type="button" class="btn secondary" id="add-to-google-wallet" ${profile.published?'':'disabled'}>▣ Add to Google Wallet</button><p id="google-wallet-status" role="status" aria-live="polite" class="hint" style="margin-top:10px"></p><p class="hint" style="margin-top:8px">Google Wallet passes can currently be saved only by approved test accounts.</p></div>`;wireCard(profile);
+ ].map(([section,items])=>`${section?`<div class="loop-side-heading" aria-hidden="true">${section}</div>`:''}${items.map(([v,label],i)=>`<button ${v==='demo'?'data-open-demo':'data-view="'+v+'"'} class="${view===v?'active':''}${i===0 && section!=='CARD ACTIONS'?' loop-nav-group-start':''}">${label}${v==='contacts'?'<span class="connection-badge" data-unread-count hidden></span>':''}</button>`).join('')}`).join('')}</aside><section><div class="top-row"><div><h1>${({overview:'My Account',edit:'Edit your card',share:'Share Your Digital Business Card','qr-shortcut':isMobileDevice()?'Add My QR Code to Home Screen':'Add My QR Code to Desktop',wallet:'Add My Card to Google Wallet',signature:'Email Signature Generator',contacts:'Your connections',settings:'Settings'})[view]}</h1><p>Welcome${profile.full_name?', '+esc(profile.full_name.split(' ')[0]):''}. Your network starts here.</p></div>${profile.published?`<a href="#/u/${encodeURIComponent(profile.username)}" class="btn secondary small">View public card ↗</a>`:'<span class="hint">Card is private</span>'}</div><div id="dash-body"></div></section></main>`);document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;showDashboard()});const demoLink=document.querySelector('[data-open-demo]');if(demoLink)demoLink.onclick=()=>{location.hash='/demo';};const el=document.getElementById('dash-body');if(view==='overview'){el.innerHTML=`<div class="dashboard-grid"><div class="panel"><h2 style="font-size:20px;margin-bottom:10px">Your digital identity</h2><p class="muted" style="margin-bottom:20px">Keep your card current and share it anywhere.</p>${card(profile)}</div><div class="panel"><h3 style="margin-bottom:16px">Quick share</h3>${qrBlock(profile)}<p class="hint" style="margin-top:16px">${profile.published?'Your card is public.':'Publish your card in Edit card before sharing.'}</p></div></div>`;wireCard(profile);drawQR(profile);}else if(view==='edit'){el.innerHTML=`<div class="panel"><div class="info-strip" style="margin-bottom:20px">Only publish information you're comfortable sharing publicly. Your personal card link and QR code stay the same.</div>${profileForm(profile)}</div>`;document.getElementById('profile-form').onsubmit=saveProfile;wireProfileEditor()}else if(view==='share'){el.innerHTML=`<div class="dashboard-grid" style="grid-template-columns:minmax(0,1fr)"><div class="panel"><h2 style="font-size:19px">Your QR code</h2><p class="hint" style="margin:8px 0 20px">Let others scan your QR code to instantly view and save your contact information.</p>${qrBlock(profile)}<div class="actions"><button class="btn" data-action="native-share">↗ Share card</button><button class="btn secondary" data-action="share-by-email">✉ Email card</button><button class="btn secondary" id="share-qr-image">↗ Share QR image</button><button class="btn secondary" id="download-qr">↓ Download QR</button></div>${!profile.published?'<p class="error">Your card is currently private. Publish it in Edit card before sharing.</p>':''}</div></div>`;wireCard(profile);
 drawQR(profile);
 const shareQR = document.getElementById('qr-canvas');
 if (shareQR) {
@@ -873,8 +882,6 @@ if (shareQR) {
   shareQR.style.height = 'auto';
   shareQR.style.maxWidth = '320px';
 }
-wirePersonalQrLink();
-wireGoogleWalletButton();
 document.querySelector('[data-action="share-by-email"]').onclick=()=>{const subject=`${profile.full_name||'My'} digital business card | the Loop`;const body=`Hello,\n\nHere is my digital business card:\n${profile.full_name||''}${profile.title?' — '+profile.title:''}\n${urlFor(profile.username)}\n\nScan the QR code shown on my card page, or open the link above to save my contact information.\n\nBest regards,\n${profile.full_name||''}`;window.location.href=`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;};document.getElementById('share-qr-image').onclick=async()=>{const canvas=document.getElementById('qr-canvas');if(!canvas||!canvas.width){announce('QR code is not ready');return}const base64=canvas.toDataURL('image/png').split(',')[1];const binary=atob(base64);const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);const file=new File([bytes],'the-loop-qr.png',{type:'image/png'});if(navigator.share&&navigator.canShare?.({files:[file]})){try{await navigator.share({title:`${profile.full_name} | the Loop`,text:`My digital business card: ${urlFor(profile.username)}`,files:[file]});return}catch(err){if(err.name==='AbortError')return;}}const a=document.createElement('a');a.download='the-loop-qr.png';a.href=canvas.toDataURL('image/png');a.click();announce('QR image downloaded. Attach it to your email manually.');};document.getElementById('download-qr').onclick=()=>{const canvas=document.getElementById('qr-canvas');if(!canvas)return;const a=document.createElement('a');a.download='the-loop-qr.png';a.href=canvas.toDataURL('image/png');a.click()}}else if(view==='qr-shortcut'){
  el.innerHTML=`<div class="panel" style="max-width:760px;padding:clamp(20px,4vw,32px)">
    <h2 style="margin-bottom:12px">${isMobileDevice()?'Your personal QR, one tap away':'Your personal QR, one click away'}</h2>
