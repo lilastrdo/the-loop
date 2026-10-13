@@ -102,8 +102,9 @@ function nav(){return `<header class="header"><div class="shell nav"><a class="b
 <a class="loop-menu-action" href="#/dashboard" data-mobile-view="wallet">Add My Card to Google Wallet<span class="loop-menu-subtitle loop-menu-device-note">For Android users</span><span class="loop-menu-subtitle">Save your digital card to Google Wallet.</span></a>
 <a href="#/dashboard" data-mobile-view="signature">Create Email Signature</a>
 <a href="#/demo">Explore the Demo</a>
-<a href="#/dashboard" data-mobile-view="settings">Settings</a>`:'<a href="#/auth">Log in</a><a href="#/auth?signup">Get started</a><a href="#/demo">Explore the Demo</a>'}${me?'<button type="button" id="mobile-logout">Log out</button>':''}</nav></header>`}
-function render(content){document.getElementById('loop-passkey-onboarding')?.remove();root.innerHTML=nav()+content+`<footer class="footer"><div class="shell">© ${new Date().getFullYear()} the Loop · Meet. Connect. Stay in the Loop.</div></footer>`;
+<a href="#/contact" data-loop-contact-link>Contact Us</a>
+<a href="#/dashboard" data-mobile-view="settings">Settings</a>`:'<a href="#/auth">Log in</a><a href="#/auth?signup">Get started</a><a href="#/demo">Explore the Demo</a><a href="#/contact" data-loop-contact-link>Contact Us</a>'}${me?'<button type="button" id="mobile-logout">Log out</button>':''}</nav></header>`}
+function render(content){document.getElementById('loop-passkey-onboarding')?.remove();root.innerHTML=nav()+content+`<footer class="footer"><div class="shell">© ${new Date().getFullYear()} the Loop · Meet. Connect. Stay in the Loop. · <a href="#/contact" data-loop-contact-link style="color:inherit;text-decoration:underline;text-underline-offset:3px">Contact Us</a></div></footer>`;
 syncUnreadBadges();
  const modeButton=document.getElementById('color-mode-toggle');if(modeButton)modeButton.onclick=toggleColorMode;
 const mobileMode=document.getElementById('mobile-theme-toggle');if(mobileMode)mobileMode.onclick=()=>{toggleColorMode();mobileMode.textContent=colorMode==='dark'?'☀':'☾';mobileMode.setAttribute('aria-label',colorMode==='dark'?'Switch to light mode':'Switch to dark mode')};
@@ -1354,4 +1355,195 @@ if(db){
   });
 }else navigate();
 window.addEventListener('hashchange',()=>{view='overview';navigate()});
+// The Loop Help: free, browser-based FAQ assistant. No paid AI/API calls.
+function initLoopHelp(){
+  if(document.getElementById('loop-help-root'))return;
+  const host=document.createElement('div');host.id='loop-help-root';
+  host.innerHTML=`<style>
+#loop-help-root { --loop-help-bg:#ffffff; --loop-help-ink:#182335; --loop-help-sub:#526178; --loop-help-field:#f7f9fc; --loop-help-border:#d9e1ee; font-family:inherit; }
+html[data-mode="dark"] #loop-help-root { --loop-help-bg:#1f2b3e; --loop-help-ink:#f8fafc; --loop-help-sub:#acbad1; --loop-help-field:#172238; --loop-help-border:#43536b; }
+#loop-help-open { position:fixed;right:19px;bottom:18px;z-index:3900;border:1px solid #7c70ee;border-radius:100px;background:#5b4cf0;color:#fff;padding:13px 18px;box-shadow:0 10px 26px #101a3560;font:600 14px system-ui,sans-serif;cursor:pointer;display:flex;gap:8px;align-items:center; }
+#loop-help-panel { position:fixed;right:16px;bottom:78px;z-index:3901;width:min(390px,calc(100vw - 24px));max-height:min(690px,calc(100dvh - 110px));display:flex;flex-direction:column;background:var(--loop-help-bg);color:var(--loop-help-ink);border:1px solid var(--loop-help-border);border-radius:17px;box-shadow:0 22px 70px #0006;overflow:hidden; }
+#loop-help-panel[hidden],#loop-help-root [hidden] { display:none !important; }
+#loop-help-panel * { box-sizing:border-box; }
+#loop-help-panel h2,#loop-help-panel p {margin:0;}
+#loop-help-head { padding:14px 15px;background:#223449;color:white;display:flex;align-items:center;gap:10px;justify-content:space-between; }
+#loop-help-close { color:#fff;background:transparent;border:1px solid #607089;border-radius:9px;padding:5px 9px;cursor:pointer;font-size:18px; }
+#loop-help-tabs { display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--loop-help-border); }
+#loop-help-tabs button { background:transparent;color:var(--loop-help-sub);border:0;padding:13px 8px;cursor:pointer;font-weight:600;border-bottom:3px solid transparent; }
+#loop-help-tabs button[aria-selected="true"] {color:var(--loop-help-ink);border-bottom-color:#8170ef; }
+.loop-help-view {overflow-y:auto;overscroll-behavior:contain;padding:14px;min-height:0; }
+#loop-help-chat-view {display:flex;flex-direction:column;min-height:280px;}
+#loop-help-messages {height:235px;min-height:100px;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:2px 1px 14px;}
+.loop-help-message {max-width:95%;border-radius:14px;padding:10px 12px;font-size:13px;line-height:1.52;white-space:pre-wrap;overflow-wrap:anywhere;}
+.loop-help-message.bot {align-self:flex-start;background:var(--loop-help-field);border:1px solid var(--loop-help-border);}
+.loop-help-message.user {align-self:flex-end;background:#5b4cf0;color:#fff;}
+.loop-help-form {display:flex;flex-direction:column;gap:10px;}
+.loop-help-form label {font-size:13px;font-weight:600;color:var(--loop-help-ink);display:flex;flex-direction:column;gap:5px;}
+.loop-help-form input,.loop-help-form select,.loop-help-form textarea {font:inherit;font-size:14px;min-width:0;width:100%;border:1px solid var(--loop-help-border);background:var(--loop-help-field);color:var(--loop-help-ink);border-radius:10px;padding:10px 11px;}
+.loop-help-form textarea {resize:vertical;min-height:66px;}
+.loop-help-form button[type="submit"] {background:#5b4cf0;border:0;border-radius:10px;color:white;padding:11px 14px;cursor:pointer;font-weight:650;}
+.loop-help-form button:disabled {opacity:.55;cursor:not-allowed;}
+.loop-help-footnote {font-size:11px;color:var(--loop-help-sub);line-height:1.45;}
+.loop-help-status {font-size:12px;line-height:1.4;min-height:14px;color:var(--loop-help-sub);}
+#loop-help-prompt-list {display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px;}
+#loop-help-prompt-list button {font-size:11px;border:1px solid var(--loop-help-border);padding:7px 8px;color:var(--loop-help-ink);background:var(--loop-help-bg);border-radius:18px;cursor:pointer;}
+#loop-help-talk-person {font-size:12px;color:var(--loop-help-ink);background:var(--loop-help-field);border:1px solid var(--loop-help-border);border-radius:9px;padding:9px 12px;cursor:pointer;align-self:flex-start;}
+@media (max-width:540px){#loop-help-open{right:12px;bottom:12px;}#loop-help-panel{right:8px;bottom:64px;width:calc(100vw - 16px);max-height:calc(100dvh - 85px)}#loop-help-messages{height:clamp(170px,31dvh,240px)} }
+  </style>
+  <button id="loop-help-open" type="button" aria-controls="loop-help-panel" aria-expanded="false">◉ Help & Contact</button>
+  <section id="loop-help-panel" role="dialog" aria-label="Loop Help and Contact Us" aria-modal="false" hidden>
+    <div id="loop-help-head"><div><strong>Loop Help</strong><p style="font-size:11px;color:#cad7e9;margin-top:2px">Instant answers & support</p></div><button id="loop-help-close" type="button" aria-label="Close help">✕</button></div>
+    <div id="loop-help-tabs" role="tablist" aria-label="Help sections"><button id="loop-help-chat-tab" type="button" role="tab" aria-controls="loop-help-chat-view" aria-selected="true">Help Center</button><button id="loop-help-contact-tab" type="button" role="tab" aria-controls="loop-help-contact-view" aria-selected="false">Contact Us</button></div>
+    <div id="loop-help-chat-view" class="loop-help-view" role="tabpanel" aria-labelledby="loop-help-chat-tab">
+      <div id="loop-help-messages" aria-live="polite"><div class="loop-help-message bot">Hi! I can help with common questions about the Loop. Choose a topic below or type a question.</div></div>
+      <div id="loop-help-prompt-list"><button type="button" data-loop-help-faq="create">Create a card</button><button type="button" data-loop-help-faq="share">Share my card</button><button type="button" data-loop-help-faq="iphone">iPhone shortcut</button><button type="button" data-loop-help-faq="wallet">Google Wallet</button><button type="button" data-loop-help-faq="password">Password help</button></div>
+      <form class="loop-help-form" id="loop-help-chat-form"><label for="loop-help-question">Ask about a Loop feature<input id="loop-help-question" maxlength="300" placeholder="e.g. How do I share my card?" required autocomplete="off"></label><button type="submit">Find answer →</button><p class="loop-help-status" id="loop-help-chat-status" role="status"></p></form>
+      <button id="loop-help-talk-person" type="button">Can't find an answer? Contact Us →</button>
+      <p class="loop-help-footnote">These are preset help answers, not generative AI. Don't enter passwords, security codes, or sensitive personal information.</p>
+    </div>
+    <div id="loop-help-contact-view" class="loop-help-view" role="tabpanel" aria-labelledby="loop-help-contact-tab" hidden>
+      <p style="font-size:13px;color:var(--loop-help-sub);line-height:1.55;margin:0 0 14px">Need a person to help? Send us a message.</p>
+      <form id="loop-help-contact-form" class="loop-help-form">
+        <label>Full name *<input name="name" maxlength="100" required autocomplete="name"></label>
+        <label>Email address *<input name="email" type="email" maxlength="200" required autocomplete="email"></label>
+        <label>Topic *<select name="topic" required><option value="General inquiry">General inquiry</option><option value="Technical support">Technical support</option><option value="Feedback or suggestion">Feedback / suggestion</option><option value="Account assistance">Account assistance</option></select></label>
+        <label>Message *<textarea name="message" maxlength="2000" rows="3" minlength="5" required placeholder="How can we help?"></textarea></label>
+        <div id="loop-help-contact-security"></div><button type="submit">Send message →</button><p class="loop-help-status" id="loop-help-contact-status" role="status" aria-live="polite"></p>
+      </form><p class="loop-help-footnote">Please don't send passwords or codes. Messages are stored privately for the Loop team to review; they are not emailed automatically.</p>
+    </div>
+  </section>`;
+  document.body.appendChild(host);
+
+  const panel=host.querySelector('#loop-help-panel');
+  const opener=host.querySelector('#loop-help-open');
+  const chatView=host.querySelector('#loop-help-chat-view');
+  const contactView=host.querySelector('#loop-help-contact-view');
+  const chatTab=host.querySelector('#loop-help-chat-tab');
+  const contactTab=host.querySelector('#loop-help-contact-tab');
+  const contactSecurity=host.querySelector('#loop-help-contact-security');
+  let widget=null, widgetLoading=false, busy=false;
+  const status=(id,msg)=>{host.querySelector('#loop-help-'+id+'-status').textContent=msg;};
+
+  // A small, transparent rules-based FAQ. No network request or model required.
+  const faqs=[
+    {id:'create', title:'Create a digital card', phrases:['create a card','create my card','make a card','sign up','register','get started','new account'], keywords:['create','signup','register','join'], answer:'Select Get started or Create your digital card on the homepage. Sign up, verify your email if requested, then open My Account → Edit My Card. Enter your full name and job title/credentials, then save and publish when ready.'},
+    {id:'edit', title:'Edit my card', phrases:['edit my card','edit my profile','update my card','change my name','update profile','profile picture','profile photo','work address','company name'], keywords:['edit','update','photo','picture','address','company','bio','theme'], answer:'Sign in → My Account → Edit My Card. Change your professional information, optional details, profile photo, or theme. You can preview changes as you type; select Save Changes to publish saved edits.'},
+    {id:'share', title:'Share my digital card', phrases:['share my card','share my digital card','send my card','get my qr','qr code','share link','copy link','download qr'], keywords:['share','qr','link','send'], answer:'Sign in → My Account → Share My Digital Card. There you can copy your card link, share it, or download the QR code. Make sure your card is published so other people can open it.'},
+    {id:'homescreen', title:'Add QR to a Home Screen', phrases:['home screen','add my qr to home screen','install my card','one tap away'], keywords:['homescreen'], answer:'Go to My Account → Special Features → Add My QR Code to Home Screen. On iPhone use Safari → Share → Add to Home Screen. On Android follow the Chrome install or shortcut instructions. On a computer, follow your browser’s shortcut instructions.'},
+    {id:'iphone', title:'Add QR to iPhone Home Screen', phrases:['iphone shortcut','iphone home screen','ios home screen','apple home screen','add to home screen','iphone install','safari shortcut'], keywords:['iphone','ios','safari'], answer:'On iPhone, open My Account → Special Features → Add My QR Code to Home Screen. Open the personal QR page in Safari, tap Share → Add to Home Screen, choose a name, and tap Add. Your shortcut opens your personal QR without signing in again.'},
+    {id:'android', title:'Add QR to Android Home Screen', phrases:['android shortcut','android home screen','android install','chrome shortcut','install shortcut'], keywords:['android','chrome','shortcut'], answer:'On Android, open My Account → Special Features → Add My QR Code to Home Screen. Follow the Chrome installation or Create shortcut instructions. This lets you open your personal QR code directly from the Home Screen.'},
+    {id:'desktop', title:'Save QR shortcut on a computer', phrases:['computer install','desktop install','desktop shortcut','windows shortcut','mac shortcut','laptop install'], keywords:['desktop','computer','windows','laptop','mac'], answer:'On a computer, go to My Account → Special Features → Add My QR Code to Home Screen. The Loop shows desktop-specific shortcut instructions; the exact options depend on Chrome, Edge, or Safari.'},
+    {id:'wallet', title:'Google Wallet', phrases:['google wallet','add to wallet','wallet pass','android wallet','save to wallet'], keywords:['wallet'], answer:'On supported Android devices, sign in → My Account → Special Features → Add My Card to Google Wallet. If the Wallet button is unavailable, it may be limited to approved test accounts. You can still use the QR Home Screen shortcut.'},
+    {id:'contacts', title:'View my connections', phrases:['my connections','contact exchange','received contacts','who sent','exchange details','download csv','export contacts'], keywords:['connections','exchanges','contact','csv'], answer:'Sign in → My Account → My Connections. View details shared with you through your public card, search connections, select records, and download a CSV or print when available.'},
+    {id:'public', title:"Save or view someone's card", phrases:['save contact','save a contact','save another card','download vcard','view public card','does recipient need account','need an account'], keywords:['vcard','recipient','visitor'], answer:'Anyone with a published Loop card link can open the card without signing in. On the public card, select Save Contact to download the person’s contact file. Visitors can optionally exchange their information with the card owner.'},
+    {id:'signature', title:'Create an email signature', phrases:['email signature','outlook signature','gmail signature','signature generator'], keywords:['signature','outlook','gmail'], answer:'Sign in → My Account → Create Email Signature. Choose whether to include your photo and QR, copy the signature, then paste it into your email app’s signature settings. Some email apps handle formatting differently.'},
+    {id:'visibility', title:'Public card privacy', phrases:['make my card private','publish my card','unpublish','public profile','what is visible','hide contact','privacy','remove phone'], keywords:['privacy','private','publish','visibility','hidden'], answer:'Sign in → My Account → Edit My Card. Only enter information you are comfortable displaying on your published card; leave optional fields blank to omit them. You can also turn off Publish My Card to hide your public profile.'},
+    {id:'password', title:'Reset my password or use passkey', phrases:['forgot password','reset password','change password','password reset','cannot log in','cant log in','login issue','passkey'], keywords:['password','login','signin','passkey'], answer:'If you forgot your password, open Log in, enter your email and select Forgot password? Use the newest reset email. If already signed in, My Account → Settings has Change Password and Passkey options. For a persistent issue, use Contact Us.'},
+    {id:'account', title:'Deactivate or delete account', phrases:['delete account','delete my account','deactivate account','close account','remove account','erase account'], keywords:['delete','deactivate','close'], answer:'Sign in → My Account → Settings to find Deactivate Account or Delete Account. Deactivation hides your profile and can be reversed; permanent deletion requires verification and cannot be undone.'},
+    {id:'support', title:'Contact support', phrases:['contact us','support team','human support','report a bug','feedback','suggestion','technical issue'], keywords:['support','feedback','bug','helpdesk'], answer:'Select the Contact Us tab here, fill in your name, email, topic, and message, then complete the security check and submit. The Loop team can review messages in its private support inbox.'}
+  ];
+  function normalize(v){return String(v||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();}
+  function matchFaq(value){
+    const q=normalize(value);if(!q)return null;
+    const specific=id=>faqs.find(f=>f.id===id);
+    if(/\bwallet\b/.test(q))return specific('wallet');
+    if(/\b(iphone|ipad|ios|safari)\b/.test(q) && /\b(home screen|homescreen|shortcut|install|qr)\b/.test(q))return specific('iphone');
+    if(/\b(android|chrome)\b/.test(q) && /\b(home screen|homescreen|shortcut|install|qr)\b/.test(q))return specific('android');
+    if(/\b(desktop|computer|mac|windows|laptop)\b/.test(q) && /\b(shortcut|install|qr|home screen)\b/.test(q))return specific('desktop');
+    if(/\bhome screen\b/.test(q))return specific('homescreen');
+    // More specific multiword phrases are weighted above generic single words.
+    const scored=faqs.map((faq,i)=>{
+      let score=0;
+      for(const phrase of faq.phrases){const p=normalize(phrase);if((' '+q+' ').includes(' '+p+' '))score=Math.max(score,10+p.split(' ').length*2);}
+      for(const word of faq.keywords){const w=normalize(word);if((' '+q+' ').includes(' '+w+' '))score+=3;}
+      return {faq,score,i};
+    }).sort((a,b)=>b.score-a.score||a.i-b.i);
+    return scored[0]?.score >= 3 ? scored[0].faq : null;
+  }
+  function addBubble(role, message){
+    const node=document.createElement('div');node.className='loop-help-message '+role;node.textContent=message;
+    const box=host.querySelector('#loop-help-messages');box.appendChild(node);box.scrollTop=box.scrollHeight;
+  }
+  function answerQuestion(question,forcedId=''){
+    const faq=forcedId?faqs.find(f=>f.id===forcedId):matchFaq(question);
+    addBubble('user',question);
+    if(faq)addBubble('bot',faq.answer);
+    else addBubble('bot',"I don't have a verified answer for that question. Please choose a suggested topic or open Contact Us so the Loop team can help.");
+    status('chat','');
+  }
+
+  function renderSecurity(){
+    if(widget!==null||widgetLoading)return;
+    if(!cfg.turnstileSiteKey){status('contact','Security verification has not been configured. Please try again later.');return;}
+    const show=()=>{
+      if(widget!==null||!contactSecurity.isConnected||!window.turnstile?.render)return;
+      try{widget=window.turnstile.render(contactSecurity,{sitekey:cfg.turnstileSiteKey,theme:document.documentElement.dataset.mode==='dark'?'dark':'light'});status('contact','');}
+      catch(err){console.warn('Turnstile unavailable:',err);status('contact','Security check unavailable. Please refresh and try again.');}
+    };
+    if(window.turnstile?.render){show();return;}
+    widgetLoading=true;
+    let script=document.querySelector('script[src*="challenges.cloudflare.com/turnstile"]');
+    if(!script){script=document.createElement('script');script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';script.async=true;script.defer=true;script.dataset.turnstile='true';document.head.appendChild(script);}
+    script.addEventListener('load',()=>{widgetLoading=false;show();},{once:true});
+    script.addEventListener('error',()=>{widgetLoading=false;status('contact','Unable to load security check.');},{once:true});
+    // Script may already be loading in another feature; late callbacks can still render on tab reopen.
+  }
+  function getToken(){return widget===null?'':(window.turnstile?.getResponse(widget)||'');}
+  function resetSecurity(){if(widget!==null)try{window.turnstile?.reset(widget);}catch{}}
+  function setTab(kind){
+    const chat=kind==='chat';chatView.hidden=!chat;contactView.hidden=chat;
+    chatTab.setAttribute('aria-selected',String(chat));contactTab.setAttribute('aria-selected',String(!chat));
+    if(!chat)renderSecurity();
+  }
+  function open(kind='chat'){
+    panel.hidden=false;opener.setAttribute('aria-expanded','true');
+    setTab(kind);(kind==='contact'?host.querySelector('#loop-help-contact-form input[name=name]'):host.querySelector('#loop-help-question')).focus();
+  }
+  function close(){panel.hidden=true;opener.setAttribute('aria-expanded','false');opener.focus();}
+  opener.onclick=()=>panel.hidden?open('chat'):close();
+  host.querySelector('#loop-help-close').onclick=close;
+  chatTab.onclick=()=>setTab('chat');contactTab.onclick=()=>setTab('contact');
+  host.querySelector('#loop-help-talk-person').onclick=()=>setTab('contact');
+  host.addEventListener('keydown',e=>{if(e.key==='Escape'&&!panel.hidden)close();});
+  // Delegation makes footer/menu Contact Us links work after page navigation.
+  document.addEventListener('click',e=>{
+    const link=e.target.closest?.('[data-loop-contact-link]');
+    if(link){e.preventDefault();open('contact');}
+  });
+  host.querySelectorAll('[data-loop-help-faq]').forEach(button=>button.onclick=()=>{
+    const faq=faqs.find(f=>f.id===button.dataset.loopHelpFaq);
+    if(faq)answerQuestion(faq.title,faq.id);
+  });
+  host.querySelector('#loop-help-chat-form').onsubmit=e=>{
+    e.preventDefault();const q=host.querySelector('#loop-help-question');const message=q.value.trim();
+    if(!message||message.length>300)return;
+    answerQuestion(message);q.value='';q.focus();
+  };
+  host.querySelector('#loop-help-contact-form').onsubmit=async e=>{
+    e.preventDefault();if(busy)return;
+    const form=e.currentTarget;if(!form.reportValidity())return;
+    const token=getToken();if(!token){status('contact','Complete the security check before sending.');renderSecurity();return;}
+    if(!configured){status('contact','Contact Us is not configured. Please try again later.');return;}
+    const d=new FormData(form),btn=form.querySelector('button[type="submit"]');
+    busy=true;btn.disabled=true;status('contact','Sending…');
+    try{
+      const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),25000);
+      let response;
+      try{
+        response=await fetch(cfg.supabaseUrl.replace(/\/$/,'')+'/functions/v1/loop-help',{
+          method:'POST',headers:{'Content-Type':'application/json',apikey:cfg.supabaseAnonKey},
+          body:JSON.stringify({action:'contact',name:d.get('name'),email:d.get('email'),topic:d.get('topic'),message:d.get('message'),turnstileToken:token}),
+          signal:controller.signal,
+        });
+      }finally{clearTimeout(timeout);}
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||!result.ok)throw Error(result.error||'Could not send your message. Please try again.');
+      status('contact',result.message||'Message received. Thank you!');form.reset();
+    }catch(err){status('contact',err?.name==='AbortError'?'Request timed out. Please try again.':err.message||'Please try again.');}
+    finally{resetSecurity();busy=false;btn.disabled=false;}
+  };
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initLoopHelp,{once:true});else initLoopHelp();
+
 })();
